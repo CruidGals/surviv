@@ -72,20 +72,20 @@ Surviv is a decentralized, offline mesh network app that turns ordinary iPhones 
 - Converts the trained model to `.mlmodel` format using `coremltools`.
 - Builds a local Python web server (Flask/FastAPI) as a "Command Center" to display a master map of all mesh data in a browser.
 
-### Role 2: P2P Networker — Kyle (Mac / Swift)
+### Role 2: P2P Networker —  (Mac / Swift)
 
 - Implements `MCSession`, `MCNearbyServiceBrowser`, and `MCNearbyServiceAdvertiser` for device discovery.
 - Writes send/receive functions for data packets between peers.
 - Implements store-and-forward routing logic for multi-hop message delivery.
 
-### Role 3: Frontend UI — Khai (Mac / SwiftUI)
+### Role 3: Frontend UI —  (Mac / SwiftUI)
 
 - Integrates Apple Maps with offline caching.
 - Builds the UI for dropping Danger and Safe Route pins.
 - Builds the Crisis Mode low-battery UI.
 - Handles the Duress PIN flow and decoy screen.
 
-### Role 4: iOS Integrator — Leo (Mac / Swift)
+### Role 4: iOS Integrator —  (Mac / Swift)
 
 - **Connects UI to P2P**: Wires Khai's map buttons and pin actions to Kyle's Multipeer Connectivity send functions so tapping a button actually broadcasts data.
 - **Plugs in the AI**: Imports the `.mlmodel` file into Xcode, writes Swift code to pipe live microphone audio into the CoreML model, and triggers automatic pin drops on threat detection.
