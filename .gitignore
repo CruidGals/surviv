@@ -1,0 +1,82 @@
+# ------------------------------------------
+# 1. OS & Environment Junk (Mac & Windows)
+# ------------------------------------------
+.DS_Store
+.AppleDouble
+.LSOverride
+Icon
+._*
+.Spotlight-V100
+.Trashes
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# ------------------------------------------
+# 2. Python Backend & AI Engine (Windows)
+# ------------------------------------------
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual Environments (CRITICAL to ignore)
+venv/
+env/
+.env
+.venv/
+env.bak/
+venv.bak/
+
+# Flask/FastAPI specific
+instance/
+.webassets-cache
+
+# ------------------------------------------
+# 3. Machine Learning Weights & Data
+# ------------------------------------------
+# Ignore massive raw model weights so GitHub doesn't crash
+*.h5
+*.pt
+*.pth
+*.weights
+*.ckpt
+*.onnx
+
+# Ignore raw audio datasets
+datasets/
+data/
+*.wav
+*.mp3
+
+# NOTE: We are intentionally NOT ignoring .mlmodel 
+# so the Windows dev can push it to the Mac team!
+
+# ------------------------------------------
+# 4. Xcode & Swift (Mac)
+# ------------------------------------------
+# Xcode temporary files and build directories
+build/
+DerivedData/
+*.pbxuser
+!default.pbxuser
+*.mode1v3
+!default.mode1v3
+*.mode2v3
+!default.mode2v3
+*.perspectivev3
+!default.perspectivev3
+xcuserdata/
+
+# App packaging
+*.ipa
+*.dSYM.zip
+*.dSYM
+
+# Swift Package Manager
+.swiftpm/xcode/
+.build/
+
+# CocoaPods (If you end up using them)
+Pods/
