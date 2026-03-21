@@ -1,13 +1,13 @@
 //
-//  surviv_ioUITestsLaunchTests.swift
-//  surviv.ioUITests
+//  survivUITestsLaunchTests.swift
+//  survivUITests
 //
 //  Created by Khai Ta on 3/21/26.
 //
 
 import XCTest
 
-final class surviv_ioUITestsLaunchTests: XCTestCase {
+final class survivUITestsLaunchTests: XCTestCase {
 
     override class var runsForEachTargetApplicationUIConfiguration: Bool {
         true
