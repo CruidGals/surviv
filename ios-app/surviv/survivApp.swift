@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import SwiftData
 
 @main
 struct survivApp: App {
@@ -13,5 +14,6 @@ struct survivApp: App {
         WindowGroup {
             ContentView()
         }
+        .modelContainer(for: [HazardPin.self, AudioRecording.self])
     }
 }
