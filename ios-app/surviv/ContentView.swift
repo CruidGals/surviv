@@ -21,7 +21,21 @@ struct ContentView: View {
             )
             .ignoresSafeArea()
 
+            LinearGradient(
+                colors: [
+                    ProjectTheme.overlayTop,
+                    .clear,
+                    ProjectTheme.overlayBottom
+                ],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+            .ignoresSafeArea()
+            .allowsHitTesting(false)
+
             VStack(spacing: 12) {
+                HeaderBar(isOnline: model.isOnline, hasOfflineArea: model.hasOfflineArea)
+
                 if !model.isOnline {
                     StatusCard(
                         title: "Offline Mode",
@@ -51,6 +65,75 @@ struct ContentView: View {
     }
 }
 
+private enum ProjectTheme {
+    static let signal = Color(red: 0.12, green: 0.72, blue: 0.52)
+    static let warning = Color(red: 0.93, green: 0.38, blue: 0.28)
+    static let caution = Color(red: 0.94, green: 0.67, blue: 0.15)
+    static let panel = Color(red: 0.07, green: 0.11, blue: 0.14).opacity(0.84)
+    static let panelBorder = Color.white.opacity(0.18)
+    static let textPrimary = Color.white
+    static let textSecondary = Color.white.opacity(0.78)
+    static let overlayTop = Color.black.opacity(0.45)
+    static let overlayBottom = Color.black.opacity(0.5)
+}
+
+private struct HeaderBar: View {
+    let isOnline: Bool
+    let hasOfflineArea: Bool
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("SURVIV")
+                .font(.system(size: 26, weight: .black, design: .rounded))
+                .foregroundStyle(ProjectTheme.textPrimary)
+
+            Text("Mesh Crisis Map")
+                .font(.system(size: 13, weight: .semibold, design: .rounded))
+                .foregroundStyle(ProjectTheme.textSecondary)
+
+            HStack(spacing: 8) {
+                StatusChip(
+                    text: isOnline ? "Link Active" : "No Link",
+                    color: isOnline ? ProjectTheme.signal : ProjectTheme.warning,
+                    icon: isOnline ? "dot.radiowaves.left.and.right" : "wifi.slash"
+                )
+
+                StatusChip(
+                    text: hasOfflineArea ? "Cache Ready" : "Cache Missing",
+                    color: hasOfflineArea ? ProjectTheme.signal : ProjectTheme.caution,
+                    icon: hasOfflineArea ? "internaldrive.fill" : "internaldrive"
+                )
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(14)
+        .background(ProjectTheme.panel, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .stroke(ProjectTheme.panelBorder, lineWidth: 1)
+        )
+    }
+}
+
+private struct StatusChip: View {
+    let text: String
+    let color: Color
+    let icon: String
+
+    var body: some View {
+        HStack(spacing: 6) {
+            Image(systemName: icon)
+                .font(.system(size: 11, weight: .bold))
+            Text(text)
+                .font(.system(size: 11, weight: .bold, design: .rounded))
+        }
+        .foregroundStyle(Color.white)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 6)
+        .background(color.opacity(0.9), in: Capsule())
+    }
+}
+
 private struct ControlPanel: View {
     let pinCount: Int
     let isDownloading: Bool
@@ -60,21 +143,23 @@ private struct ControlPanel: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             Text("Hazard Mapping")
-                .font(.headline)
+                .font(.system(size: 20, weight: .heavy, design: .rounded))
+                .foregroundStyle(ProjectTheme.textPrimary)
             Text("Long press anywhere on the map to drop a Hazard Pin.")
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
+                .font(.system(size: 13, weight: .medium, design: .rounded))
+                .foregroundStyle(ProjectTheme.textSecondary)
 
             HStack {
-                Label("\(pinCount) Pins", systemImage: "mappin.and.ellipse")
-                    .font(.subheadline)
+                Label("\(pinCount) Hazard Pins", systemImage: "exclamationmark.triangle.fill")
+                    .font(.system(size: 13, weight: .bold, design: .rounded))
+                    .foregroundStyle(ProjectTheme.caution)
                 Spacer()
             }
 
             HStack(spacing: 10) {
                 Button(action: onDownloadArea) {
                     Label(
-                        isDownloading ? "Downloading..." : "Download This Area",
+                        isDownloading ? "Caching..." : "Preload Area",
                         systemImage: "arrow.down.circle"
                     )
                     .frame(maxWidth: .infinity)
@@ -83,14 +168,18 @@ private struct ControlPanel: View {
                 .disabled(isDownloading)
 
                 Button(action: onClearPins) {
-                    Label("Clear", systemImage: "trash")
+                    Label("Clear Pins", systemImage: "trash")
                         .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.bordered)
             }
         }
         .padding(14)
-        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .background(ProjectTheme.panel, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .stroke(ProjectTheme.panelBorder, lineWidth: 1)
+        )
     }
 }
 
@@ -101,14 +190,19 @@ private struct StatusCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
             Text(title)
-                .font(.headline)
+                .font(.system(size: 16, weight: .bold, design: .rounded))
+                .foregroundStyle(ProjectTheme.textPrimary)
             Text(subtitle)
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
+                .font(.system(size: 13, weight: .medium, design: .rounded))
+                .foregroundStyle(ProjectTheme.textSecondary)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(12)
-        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .background(ProjectTheme.panel, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .stroke(ProjectTheme.warning.opacity(0.65), lineWidth: 1)
+        )
     }
 }
 
@@ -120,7 +214,7 @@ private struct HazardPin: Identifiable {
 
 private final class HazardMapViewModel: ObservableObject {
     @Published var region = MKCoordinateRegion(
-        center: CLLocationCoordinate2D(latitude: 37.7749, longitude: -122.4194),
+        center: CLLocationCoordinate2D(latitude: 31.5017, longitude: 34.4668),
         span: MKCoordinateSpan(latitudeDelta: 0.08, longitudeDelta: 0.08)
     )
     @Published var pins: [HazardPin] = []
@@ -336,6 +430,7 @@ private struct HazardMapView: UIViewRepresentable {
             action: #selector(Coordinator.handleLongPress(_:))
         )
         longPress.minimumPressDuration = 0.45
+        longPress.cancelsTouchesInView = false
         mapView.addGestureRecognizer(longPress)
 
         return mapView
