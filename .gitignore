@@ -42,7 +42,15 @@ data/
 *.wav
 *.mp3
 
-# Xcode & Swift
+ai-engine/MAD_dataset/
+
+# NOTE: We are intentionally NOT ignoring .mlmodel 
+# so the Windows dev can push it to the Mac team!
+
+# ------------------------------------------
+# 4. Xcode & Swift (Mac)
+# ------------------------------------------
+# Xcode temporary files and build directories
 build/
 DerivedData/
 *.pbxuser

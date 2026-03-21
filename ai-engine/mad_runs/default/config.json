@@ -1,0 +1,9 @@
+{
+  "sample_rate": 16000,
+  "duration_sec": 3.0,
+  "n_fft": 512,
+  "hop_length": 128,
+  "n_mels": 64,
+  "num_classes": 7,
+  "dropout": 0.2
+}
