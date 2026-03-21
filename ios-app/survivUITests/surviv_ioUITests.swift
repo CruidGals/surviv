@@ -1,13 +1,13 @@
 //
-//  survivUITests.swift
-//  survivUITests
+//  surviv_ioUITests.swift
+//  surviv.ioUITests
 //
 //  Created by Khai Ta on 3/21/26.
 //
 
 import XCTest
 
-final class survivUITests: XCTestCase {
+final class surviv_ioUITests: XCTestCase {
 
     override func setUpWithError() throws {
         // Put setup code here. This method is called before the invocation of each test method in the class.

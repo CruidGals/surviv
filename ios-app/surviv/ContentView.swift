@@ -1,6 +1,6 @@
 //
 //  ContentView.swift
-//  surviv
+//  surviv.io
 //
 //  Created by Khai Ta on 3/21/26.
 //
