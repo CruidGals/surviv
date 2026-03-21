@@ -121,14 +121,6 @@ Surviv is a decentralized, offline mesh network app that turns ordinary iPhones 
 
 ---
 
-## Hackathon Categories
-
-- **Primary**: Accessibility & Empowerment
-- **Secondary**: AI & Data Science
-- **Tertiary**: Best Low-Level Hack
-
----
-
 ## Design Principles
 
 - **Offline-first**: Every feature must work with zero internet.
