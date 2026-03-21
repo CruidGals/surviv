@@ -128,3 +128,12 @@ Surviv is a decentralized, offline mesh network app that turns ordinary iPhones 
 - **Battery-conscious**: Minimal resource usage; Crisis Mode extends uptime to days.
 - **User safety**: The Duress PIN exists because getting caught with a tactical map in a conflict zone can be fatal.
 - **Simplicity under stress**: The UI must be usable by someone who is scared, injured, or in the dark.
+
+
+
+##surviv/ folder structure
+Need to change how data is shaped/stored? → Models/
+Need to change how services work (audio, GPS, mesh, wiring)? → Services/
+Need to touch P2P networking? → P2P/ (Kyle's territory)
+Need to touch UI? → The loose files in the root (ContentView.swift, AdminViews.swift, etc.) are Khai's territory
+Need to change what happens at app launch? → survivApp.swift
