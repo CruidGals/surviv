@@ -1,0 +1,9 @@
+# PyTorch: install the wheel matching your CUDA/CPU from https://pytorch.org/
+torch>=2.0.0
+torchaudio>=2.0.0
+numpy>=1.24.0
+tqdm>=4.65.0
+# Helps torchaudio load many WAV/FLAC variants (recommended on Windows)
+soundfile>=0.12.0
+# Live microphone inference (ai-engine/live_mic_mad.py)
+sounddevice>=0.4.6
