@@ -12,35 +12,35 @@
 			containerPortal = DF789DEB2F6F242F00132287 /* Project object */;
 			proxyType = 1;
 			remoteGlobalIDString = DF789E2E2F6F2BAA00132287;
-			remoteInfo = surviv.io;
+			remoteInfo = surviv;
 		};
 		DF789E462F6F2BAB00132287 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = DF789DEB2F6F242F00132287 /* Project object */;
 			proxyType = 1;
 			remoteGlobalIDString = DF789E2E2F6F2BAA00132287;
-			remoteInfo = surviv.io;
+			remoteInfo = surviv;
 		};
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
-		DF789E2F2F6F2BAA00132287 /* surviv.io.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = surviv.io.app; sourceTree = BUILT_PRODUCTS_DIR; };
-		DF789E3B2F6F2BAB00132287 /* surviv.ioTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = surviv.ioTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
-		DF789E452F6F2BAB00132287 /* surviv.ioUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = surviv.ioUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		DF789E2F2F6F2BAA00132287 /* surviv.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = surviv.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		DF789E3B2F6F2BAB00132287 /* survivTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = survivTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		DF789E452F6F2BAB00132287 /* survivUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = survivUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
-		DF789E302F6F2BAA00132287 /* surviv.io */ = {
+		DF789E302F6F2BAA00132287 /* surviv */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			path = surviv;
 			sourceTree = "<group>";
 		};
-		DF789E3E2F6F2BAB00132287 /* surviv.ioTests */ = {
+		DF789E3E2F6F2BAB00132287 /* survivTests */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			path = survivTests;
 			sourceTree = "<group>";
 		};
-		DF789E482F6F2BAB00132287 /* surviv.ioUITests */ = {
+		DF789E482F6F2BAB00132287 /* survivUITests */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			path = survivUITests;
 			sourceTree = "<group>";
@@ -75,9 +75,9 @@
 		DF789DEA2F6F242F00132287 = {
 			isa = PBXGroup;
 			children = (
-				DF789E302F6F2BAA00132287 /* surviv.io */,
-				DF789E3E2F6F2BAB00132287 /* surviv.ioTests */,
-				DF789E482F6F2BAB00132287 /* surviv.ioUITests */,
+				DF789E302F6F2BAA00132287 /* surviv */,
+				DF789E3E2F6F2BAB00132287 /* survivTests */,
+				DF789E482F6F2BAB00132287 /* survivUITests */,
 				DF789DF42F6F242F00132287 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -85,9 +85,9 @@
 		DF789DF42F6F242F00132287 /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				DF789E2F2F6F2BAA00132287 /* surviv.io.app */,
-				DF789E3B2F6F2BAB00132287 /* surviv.ioTests.xctest */,
-				DF789E452F6F2BAB00132287 /* surviv.ioUITests.xctest */,
+				DF789E2F2F6F2BAA00132287 /* surviv.app */,
+				DF789E3B2F6F2BAB00132287 /* survivTests.xctest */,
+				DF789E452F6F2BAB00132287 /* survivUITests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -95,9 +95,9 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
-		DF789E2E2F6F2BAA00132287 /* surviv.io */ = {
+		DF789E2E2F6F2BAA00132287 /* surviv */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = DF789E532F6F2BAB00132287 /* Build configuration list for PBXNativeTarget "surviv.io" */;
+			buildConfigurationList = DF789E532F6F2BAB00132287 /* Build configuration list for PBXNativeTarget "surviv" */;
 			buildPhases = (
 				DF789E2B2F6F2BAA00132287 /* Sources */,
 				DF789E2C2F6F2BAA00132287 /* Frameworks */,
@@ -108,18 +108,18 @@
 			dependencies = (
 			);
 			fileSystemSynchronizedGroups = (
-				DF789E302F6F2BAA00132287 /* surviv.io */,
+				DF789E302F6F2BAA00132287 /* surviv */,
 			);
-			name = surviv.io;
+			name = surviv;
 			packageProductDependencies = (
 			);
-			productName = surviv.io;
-			productReference = DF789E2F2F6F2BAA00132287 /* surviv.io.app */;
+			productName = surviv;
+			productReference = DF789E2F2F6F2BAA00132287 /* surviv.app */;
 			productType = "com.apple.product-type.application";
 		};
-		DF789E3A2F6F2BAB00132287 /* surviv.ioTests */ = {
+		DF789E3A2F6F2BAB00132287 /* survivTests */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = DF789E542F6F2BAB00132287 /* Build configuration list for PBXNativeTarget "surviv.ioTests" */;
+			buildConfigurationList = DF789E542F6F2BAB00132287 /* Build configuration list for PBXNativeTarget "survivTests" */;
 			buildPhases = (
 				DF789E372F6F2BAB00132287 /* Sources */,
 				DF789E382F6F2BAB00132287 /* Frameworks */,
@@ -131,18 +131,18 @@
 				DF789E3D2F6F2BAB00132287 /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
-				DF789E3E2F6F2BAB00132287 /* surviv.ioTests */,
+				DF789E3E2F6F2BAB00132287 /* survivTests */,
 			);
-			name = surviv.ioTests;
+			name = survivTests;
 			packageProductDependencies = (
 			);
-			productName = surviv.ioTests;
-			productReference = DF789E3B2F6F2BAB00132287 /* surviv.ioTests.xctest */;
+			productName = survivTests;
+			productReference = DF789E3B2F6F2BAB00132287 /* survivTests.xctest */;
 			productType = "com.apple.product-type.bundle.unit-test";
 		};
-		DF789E442F6F2BAB00132287 /* surviv.ioUITests */ = {
+		DF789E442F6F2BAB00132287 /* survivUITests */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = DF789E552F6F2BAB00132287 /* Build configuration list for PBXNativeTarget "surviv.ioUITests" */;
+			buildConfigurationList = DF789E552F6F2BAB00132287 /* Build configuration list for PBXNativeTarget "survivUITests" */;
 			buildPhases = (
 				DF789E412F6F2BAB00132287 /* Sources */,
 				DF789E422F6F2BAB00132287 /* Frameworks */,
@@ -154,13 +154,13 @@
 				DF789E472F6F2BAB00132287 /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
-				DF789E482F6F2BAB00132287 /* surviv.ioUITests */,
+				DF789E482F6F2BAB00132287 /* survivUITests */,
 			);
-			name = surviv.ioUITests;
+			name = survivUITests;
 			packageProductDependencies = (
 			);
-			productName = surviv.ioUITests;
-			productReference = DF789E452F6F2BAB00132287 /* surviv.ioUITests.xctest */;
+			productName = survivUITests;
+			productReference = DF789E452F6F2BAB00132287 /* survivUITests.xctest */;
 			productType = "com.apple.product-type.bundle.ui-testing";
 		};
 /* End PBXNativeTarget section */
@@ -200,9 +200,9 @@
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
-				DF789E2E2F6F2BAA00132287 /* surviv.io */,
-				DF789E3A2F6F2BAB00132287 /* surviv.ioTests */,
-				DF789E442F6F2BAB00132287 /* surviv.ioUITests */,
+				DF789E2E2F6F2BAA00132287 /* surviv */,
+				DF789E3A2F6F2BAB00132287 /* survivTests */,
+				DF789E442F6F2BAB00132287 /* survivUITests */,
 			);
 		};
 /* End PBXProject section */
@@ -258,12 +258,12 @@
 /* Begin PBXTargetDependency section */
 		DF789E3D2F6F2BAB00132287 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
-			target = DF789E2E2F6F2BAA00132287 /* surviv.io */;
+			target = DF789E2E2F6F2BAA00132287 /* surviv */;
 			targetProxy = DF789E3C2F6F2BAB00132287 /* PBXContainerItemProxy */;
 		};
 		DF789E472F6F2BAB00132287 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
-			target = DF789E2E2F6F2BAA00132287 /* surviv.io */;
+			target = DF789E2E2F6F2BAA00132287 /* surviv */;
 			targetProxy = DF789E462F6F2BAB00132287 /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
@@ -403,7 +403,7 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = "surviv.surviv-io";
+				PRODUCT_BUNDLE_IDENTIFIER = "surviv.surviv";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
 				SWIFT_EMIT_LOC_STRINGS = YES;
@@ -432,7 +432,7 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = "surviv.surviv-io";
+				PRODUCT_BUNDLE_IDENTIFIER = "surviv.surviv";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
 				SWIFT_EMIT_LOC_STRINGS = YES;
@@ -451,13 +451,13 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 18.5;
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = "surviv.surviv-ioTests";
+				PRODUCT_BUNDLE_IDENTIFIER = "surviv.survivTests";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
 				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/surviv.io.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/surviv.io";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/surviv.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/surviv";
 			};
 			name = Debug;
 		};
@@ -470,13 +470,13 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 18.5;
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = "surviv.surviv-ioTests";
+				PRODUCT_BUNDLE_IDENTIFIER = "surviv.survivTests";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
 				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/surviv.io.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/surviv.io";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/surviv.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/surviv";
 				VALIDATE_PRODUCT = YES;
 			};
 			name = Release;
@@ -489,13 +489,13 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 18.5;
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = "surviv.surviv-ioUITests";
+				PRODUCT_BUNDLE_IDENTIFIER = "surviv.survivUITests";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
 				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
-				TEST_TARGET_NAME = surviv.io;
+				TEST_TARGET_NAME = surviv;
 			};
 			name = Debug;
 		};
@@ -507,13 +507,13 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 18.5;
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = "surviv.surviv-ioUITests";
+				PRODUCT_BUNDLE_IDENTIFIER = "surviv.survivUITests";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
 				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
-				TEST_TARGET_NAME = surviv.io;
+				TEST_TARGET_NAME = surviv;
 				VALIDATE_PRODUCT = YES;
 			};
 			name = Release;
@@ -530,7 +530,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		DF789E532F6F2BAB00132287 /* Build configuration list for PBXNativeTarget "surviv.io" */ = {
+		DF789E532F6F2BAB00132287 /* Build configuration list for PBXNativeTarget "surviv" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				DF789E4D2F6F2BAB00132287 /* Debug */,
@@ -539,7 +539,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		DF789E542F6F2BAB00132287 /* Build configuration list for PBXNativeTarget "surviv.ioTests" */ = {
+		DF789E542F6F2BAB00132287 /* Build configuration list for PBXNativeTarget "survivTests" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				DF789E4F2F6F2BAB00132287 /* Debug */,
@@ -548,7 +548,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		DF789E552F6F2BAB00132287 /* Build configuration list for PBXNativeTarget "surviv.ioUITests" */ = {
+		DF789E552F6F2BAB00132287 /* Build configuration list for PBXNativeTarget "survivUITests" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				DF789E512F6F2BAB00132287 /* Debug */,

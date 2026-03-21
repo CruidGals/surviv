@@ -6,7 +6,7 @@
 //
 
 import Testing
-@testable import surviv_io
+@testable import surviv
 
 struct survivTests {
 
