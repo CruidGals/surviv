@@ -1,6 +1,4 @@
-# ------------------------------------------
-# 1. OS & Environment Junk (Mac & Windows)
-# ------------------------------------------
+# OS & Environment Junk
 .DS_Store
 .AppleDouble
 .LSOverride
@@ -13,15 +11,12 @@ ehthumbs.db
 Desktop.ini
 $RECYCLE.BIN/
 
-# ------------------------------------------
-# 2. Python Backend & AI Engine (Windows)
-# ------------------------------------------
-# Byte-compiled / optimized / DLL files
+# Python Backend & AI Engine
 __pycache__/
 *.py[cod]
 *$py.class
 
-# Virtual Environments (CRITICAL to ignore)
+# Virtual Environments 
 venv/
 env/
 .env
@@ -33,10 +28,7 @@ venv.bak/
 instance/
 .webassets-cache
 
-# ------------------------------------------
-# 3. Machine Learning Weights & Data
-# ------------------------------------------
-# Ignore massive raw model weights so GitHub doesn't crash
+# Machine Learning Weights & Data
 *.h5
 *.pt
 *.pth
@@ -50,13 +42,7 @@ data/
 *.wav
 *.mp3
 
-# NOTE: We are intentionally NOT ignoring .mlmodel 
-# so the Windows dev can push it to the Mac team!
-
-# ------------------------------------------
-# 4. Xcode & Swift (Mac)
-# ------------------------------------------
-# Xcode temporary files and build directories
+# Xcode & Swift
 build/
 DerivedData/
 *.pbxuser
@@ -78,5 +64,5 @@ xcuserdata/
 .swiftpm/xcode/
 .build/
 
-# CocoaPods (If you end up using them)
+# CocoaPods
 Pods/
