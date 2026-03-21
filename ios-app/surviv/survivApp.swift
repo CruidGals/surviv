@@ -12,7 +12,7 @@ import SwiftData
 struct survivApp: App {
     var body: some Scene {
         WindowGroup {
-            DebugTerminalView()
+            ContentView()
         }
         .modelContainer(for: [HazardPin.self, AudioRecording.self])
     }
