@@ -11,7 +11,7 @@ import SwiftUI
 struct survivApp: App {
     var body: some Scene {
         WindowGroup {
-            ContentView()
+            DebugTerminalView()
         }
     }
 }
