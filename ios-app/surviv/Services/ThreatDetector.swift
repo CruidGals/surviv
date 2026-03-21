@@ -4,7 +4,7 @@ import CoreML
 import SwiftData
 
 @Observable
-final class AudioThreatDetector {
+final class ThreatDetector {
     private var audioEngine: AVAudioEngine?
     private var audioFile: AVAudioFile?
     private var recordingStartTime: Date?
@@ -52,7 +52,7 @@ final class AudioThreatDetector {
 
         self.audioEngine = engine
         isListening = true
-        print("[AudioThreatDetector] Listening started — writing to \(fileName)")
+        print("[ThreatDetector] Listening started — writing to \(fileName)")
     }
 
     func stopListening() {
@@ -68,7 +68,7 @@ final class AudioThreatDetector {
         currentFileName = nil
         recordingStartTime = nil
         isListening = false
-        print("[AudioThreatDetector] Listening stopped")
+        print("[ThreatDetector] Listening stopped")
     }
 
     // MARK: - Processing
@@ -107,7 +107,7 @@ final class AudioThreatDetector {
         )
         modelContext.insert(recording)
         try? modelContext.save()
-        print("[AudioThreatDetector] Saved recording: \(fileName) (\(String(format: "%.1f", duration))s)")
+        print("[ThreatDetector] Saved recording: \(fileName) (\(String(format: "%.1f", duration))s)")
     }
 
     func createThreatPin(label: String) -> HazardPin {

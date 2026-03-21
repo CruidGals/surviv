@@ -20,6 +20,7 @@ final class HazardPin {
     var longitude: Double
     var pinType: PinType
     var threatSource: ThreatSource
+    var radiusMeters: Double
     var label: String
     var sourceDeviceID: String
     var timestamp: Date
@@ -33,6 +34,7 @@ final class HazardPin {
         longitude: Double,
         pinType: PinType,
         threatSource: ThreatSource = .manual,
+        radiusMeters: Double = 120,
         label: String = "",
         sourceDeviceID: String = "",
         timestamp: Date = .now
@@ -42,6 +44,7 @@ final class HazardPin {
         self.longitude = longitude
         self.pinType = pinType
         self.threatSource = threatSource
+        self.radiusMeters = radiusMeters
         self.label = label
         self.sourceDeviceID = sourceDeviceID
         self.timestamp = timestamp

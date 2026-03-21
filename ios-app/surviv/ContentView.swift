@@ -6,18 +6,31 @@
 //
 
 import SwiftUI
+import SwiftData
 import MapKit
 import Network
 
 struct ContentView: View {
-    @StateObject private var model = HazardMapViewModel()
+    @Environment(\.modelContext) private var modelContext
+    @EnvironmentObject private var coordinator: Coordinator
+    @Query(sort: \HazardPin.timestamp, order: .reverse) private var pins: [HazardPin]
+    @StateObject private var model = MapViewModel()
 
     var body: some View {
         ZStack(alignment: .bottom) {
             HazardMapView(
                 region: $model.region,
-                zones: model.zones,
-                onDropZone: model.addZone(at:)
+                pins: pins,
+                onDropPin: { coordinate in
+                    let pin = HazardPin(
+                        latitude: coordinate.latitude,
+                        longitude: coordinate.longitude,
+                        pinType: model.selectedPinType,
+                        radiusMeters: model.zoneRadiusMeters
+                    )
+                    modelContext.insert(pin)
+                    coordinator.broadcastPin(pin)
+                }
             )
             .ignoresSafeArea()
 
@@ -36,6 +49,11 @@ struct ContentView: View {
             VStack(spacing: 12) {
                 HeaderBar(isOnline: model.isOnline, hasOfflineArea: model.hasOfflineArea)
 
+                if let threat = coordinator.threatAlert {
+                    StatusCard(title: "THREAT DETECTED", subtitle: "Acoustic sensor detected: \(threat)")
+                        .onTapGesture { coordinator.dismissThreatAlert() }
+                }
+
                 if !model.isOnline {
                     StatusCard(
                         title: "Offline Mode",
@@ -50,14 +68,19 @@ struct ContentView: View {
                 }
 
                 ControlPanel(
-                    selectedZoneType: model.selectedZoneType,
+                    selectedPinType: model.selectedPinType,
                     zoneRadiusMeters: $model.zoneRadiusMeters,
-                    zoneCount: model.zones.count,
+                    pinCount: pins.count,
                     isDownloading: model.isDownloading,
-                    onSelectType: model.selectZoneType(_:),
-                    onApplyRadiusToLast: model.applyRadiusToLastZone,
+                    onSelectType: model.selectPinType(_:),
+                    onApplyRadiusToLast: {
+                        guard let last = pins.first else { return }
+                        last.radiusMeters = model.zoneRadiusMeters
+                    },
                     onDownloadArea: model.downloadCurrentArea,
-                    onClearZones: model.clearZones
+                    onClearPins: {
+                        for pin in pins { modelContext.delete(pin) }
+                    }
                 )
             }
             .padding(.horizontal, 16)
@@ -69,7 +92,7 @@ struct ContentView: View {
     }
 }
 
-private enum ProjectTheme {
+enum ProjectTheme {
     static let signal = Color(red: 0.12, green: 0.72, blue: 0.52)
     static let warning = Color(red: 0.90, green: 0.20, blue: 0.20)
     static let caution = Color(red: 0.94, green: 0.67, blue: 0.15)
@@ -139,14 +162,14 @@ private struct StatusChip: View {
 }
 
 private struct ControlPanel: View {
-    let selectedZoneType: ZoneType
+    let selectedPinType: PinType
     @Binding var zoneRadiusMeters: Double
-    let zoneCount: Int
+    let pinCount: Int
     let isDownloading: Bool
-    let onSelectType: (ZoneType) -> Void
+    let onSelectType: (PinType) -> Void
     let onApplyRadiusToLast: () -> Void
     let onDownloadArea: () -> Void
-    let onClearZones: () -> Void
+    let onClearPins: () -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -162,7 +185,7 @@ private struct ControlPanel: View {
                     title: "Danger",
                     icon: "exclamationmark.triangle.fill",
                     color: ProjectTheme.warning,
-                    isSelected: selectedZoneType == .danger,
+                    isSelected: selectedPinType == .danger,
                     onTap: { onSelectType(.danger) }
                 )
 
@@ -170,7 +193,7 @@ private struct ControlPanel: View {
                     title: "Safe Route",
                     icon: "figure.walk.diamond.fill",
                     color: ProjectTheme.signal,
-                    isSelected: selectedZoneType == .safeRoute,
+                    isSelected: selectedPinType == .safeRoute,
                     onTap: { onSelectType(.safeRoute) }
                 )
             }
@@ -186,7 +209,7 @@ private struct ControlPanel: View {
                         .foregroundStyle(ProjectTheme.textPrimary)
                 }
                 Slider(value: $zoneRadiusMeters, in: 50...800, step: 10)
-                    .tint(selectedZoneType == .danger ? ProjectTheme.warning : ProjectTheme.signal)
+                    .tint(selectedPinType == .danger ? ProjectTheme.warning : ProjectTheme.signal)
                 Button(action: onApplyRadiusToLast) {
                     Label("Apply Radius To Last Zone", systemImage: "arrow.uturn.backward.circle")
                         .font(.system(size: 12, weight: .semibold, design: .rounded))
@@ -195,7 +218,7 @@ private struct ControlPanel: View {
             }
 
             HStack {
-                Label("\(zoneCount) Hazard Zones", systemImage: "shield.lefthalf.filled.trianglebadge.exclamationmark")
+                Label("\(pinCount) Hazard Zones", systemImage: "shield.lefthalf.filled.trianglebadge.exclamationmark")
                     .font(.system(size: 13, weight: .bold, design: .rounded))
                     .foregroundStyle(ProjectTheme.caution)
                 Spacer()
@@ -212,7 +235,7 @@ private struct ControlPanel: View {
                 .buttonStyle(.borderedProminent)
                 .disabled(isDownloading)
 
-                Button(action: onClearZones) {
+                Button(action: onClearPins) {
                     Label("Clear Zones", systemImage: "trash")
                         .frame(maxWidth: .infinity)
                 }
@@ -275,26 +298,14 @@ private struct StatusCard: View {
     }
 }
 
-private struct HazardZone: Identifiable {
-    let id = UUID()
-    let coordinate: CLLocationCoordinate2D
-    var radiusMeters: CLLocationDistance
-    let type: ZoneType
-    let createdAt = Date()
-}
+// MARK: - View Model
 
-private enum ZoneType: String {
-    case danger
-    case safeRoute
-}
-
-private final class HazardMapViewModel: ObservableObject {
+final class MapViewModel: ObservableObject {
     @Published var region = MKCoordinateRegion(
         center: CLLocationCoordinate2D(latitude: 31.5017, longitude: 34.4668),
         span: MKCoordinateSpan(latitudeDelta: 0.08, longitudeDelta: 0.08)
     )
-    @Published var zones: [HazardZone] = []
-    @Published var selectedZoneType: ZoneType = .danger
+    @Published var selectedPinType: PinType = .danger
     @Published var zoneRadiusMeters: Double = 120
     @Published var isDownloading = false
     @Published var downloadStatusMessage: String?
@@ -309,27 +320,8 @@ private final class HazardMapViewModel: ObservableObject {
             .assign(to: &$isOnline)
     }
 
-    func selectZoneType(_ type: ZoneType) {
-        selectedZoneType = type
-    }
-
-    func addZone(at coordinate: CLLocationCoordinate2D) {
-        zones.append(
-            HazardZone(
-                coordinate: coordinate,
-                radiusMeters: zoneRadiusMeters,
-                type: selectedZoneType
-            )
-        )
-    }
-
-    func applyRadiusToLastZone() {
-        guard !zones.isEmpty else { return }
-        zones[zones.count - 1].radiusMeters = zoneRadiusMeters
-    }
-
-    func clearZones() {
-        zones.removeAll()
+    func selectPinType(_ type: PinType) {
+        selectedPinType = type
     }
 
     func loadOfflineMetadata() {
@@ -364,6 +356,8 @@ private final class HazardMapViewModel: ObservableObject {
     }
 }
 
+// MARK: - Connectivity
+
 private final class ConnectivityMonitor: ObservableObject {
     @Published private(set) var isOnline = true
 
@@ -383,6 +377,8 @@ private final class ConnectivityMonitor: ObservableObject {
         monitor.cancel()
     }
 }
+
+// MARK: - Offline Map Cache
 
 private struct OfflineAreaMetadata: Codable {
     let centerLatitude: CLLocationDegrees
@@ -501,18 +497,20 @@ private final class OfflineMapCacheManager {
     }
 }
 
-private struct HazardMapView: UIViewRepresentable {
+// MARK: - Map View
+
+struct HazardMapView: UIViewRepresentable {
     @Binding var region: MKCoordinateRegion
-    let zones: [HazardZone]
-    let onDropZone: (CLLocationCoordinate2D) -> Void
+    let pins: [HazardPin]
+    let onDropPin: (CLLocationCoordinate2D) -> Void
 
-    final class ZoneCenterAnnotation: NSObject, MKAnnotation {
+    final class PinAnnotation: NSObject, MKAnnotation {
         let coordinate: CLLocationCoordinate2D
-        let zoneType: ZoneType
+        let pinType: PinType
 
-        init(coordinate: CLLocationCoordinate2D, zoneType: ZoneType) {
+        init(coordinate: CLLocationCoordinate2D, pinType: PinType) {
             self.coordinate = coordinate
-            self.zoneType = zoneType
+            self.pinType = pinType
         }
     }
 
@@ -552,26 +550,24 @@ private struct HazardMapView: UIViewRepresentable {
             mapView.setRegion(region, animated: false)
         }
 
-        let renderKey = zones.map { zone in
-            "\(zone.id.uuidString)|\(zone.type.rawValue)|\(zone.coordinate.latitude)|\(zone.coordinate.longitude)|\(zone.radiusMeters)"
+        let renderKey = pins.map { pin in
+            "\(pin.id.uuidString)|\(pin.pinType.rawValue)|\(pin.latitude)|\(pin.longitude)|\(pin.radiusMeters)"
         }.joined(separator: ";")
 
         if context.coordinator.lastRenderKey != renderKey {
             mapView.removeOverlays(mapView.overlays)
-            let overlays = zones.map { zone in
-                let circle = MKCircle(center: zone.coordinate, radius: zone.radiusMeters)
-                circle.title = zone.type.rawValue
+            let overlays = pins.map { pin in
+                let circle = MKCircle(center: pin.coordinate, radius: pin.radiusMeters)
+                circle.title = pin.pinType.rawValue
                 return circle
             }
             mapView.addOverlays(overlays)
 
-            let existingZoneAnnotations = mapView.annotations.compactMap { annotation in
-                annotation as? ZoneCenterAnnotation
-            }
-            mapView.removeAnnotations(existingZoneAnnotations)
+            let existingAnnotations = mapView.annotations.compactMap { $0 as? PinAnnotation }
+            mapView.removeAnnotations(existingAnnotations)
 
-            let newAnnotations = zones.map { zone in
-                ZoneCenterAnnotation(coordinate: zone.coordinate, zoneType: zone.type)
+            let newAnnotations = pins.map { pin in
+                PinAnnotation(coordinate: pin.coordinate, pinType: pin.pinType)
             }
             mapView.addAnnotations(newAnnotations)
 
@@ -593,7 +589,7 @@ private struct HazardMapView: UIViewRepresentable {
 
             let point = recognizer.location(in: mapView)
             let coordinate = mapView.convert(point, toCoordinateFrom: mapView)
-            parent.onDropZone(coordinate)
+            parent.onDropPin(coordinate)
         }
 
         @objc func handleLongPress(_ recognizer: UILongPressGestureRecognizer) {
@@ -602,7 +598,7 @@ private struct HazardMapView: UIViewRepresentable {
 
             let point = recognizer.location(in: mapView)
             let coordinate = mapView.convert(point, toCoordinateFrom: mapView)
-            parent.onDropZone(coordinate)
+            parent.onDropPin(coordinate)
         }
 
         func mapView(_ mapView: MKMapView, regionDidChangeAnimated animated: Bool) {
@@ -614,10 +610,10 @@ private struct HazardMapView: UIViewRepresentable {
                 return MKOverlayRenderer(overlay: overlay)
             }
 
-            let zoneType = ZoneType(rawValue: circle.title ?? "") ?? .danger
+            let pinType = PinType(rawValue: circle.title ?? "") ?? .danger
 
             let renderer = MKCircleRenderer(circle: circle)
-            switch zoneType {
+            switch pinType {
             case .danger:
                 renderer.fillColor = UIColor(ProjectTheme.warning.opacity(0.30))
                 renderer.strokeColor = UIColor(ProjectTheme.warning)
@@ -630,18 +626,18 @@ private struct HazardMapView: UIViewRepresentable {
         }
 
         func mapView(_ mapView: MKMapView, viewFor annotation: MKAnnotation) -> MKAnnotationView? {
-            guard let zoneAnnotation = annotation as? ZoneCenterAnnotation else {
+            guard let pinAnnotation = annotation as? PinAnnotation else {
                 return nil
             }
 
             let reuseId = "zone-center-pin"
             let view = (mapView.dequeueReusableAnnotationView(withIdentifier: reuseId) as? MKMarkerAnnotationView)
-                ?? MKMarkerAnnotationView(annotation: zoneAnnotation, reuseIdentifier: reuseId)
+                ?? MKMarkerAnnotationView(annotation: pinAnnotation, reuseIdentifier: reuseId)
 
-            view.annotation = zoneAnnotation
+            view.annotation = pinAnnotation
             view.glyphImage = UIImage(systemName: "mappin")
             view.glyphTintColor = .white
-            view.markerTintColor = zoneAnnotation.zoneType == .danger
+            view.markerTintColor = pinAnnotation.pinType == .danger
                 ? UIColor(ProjectTheme.warning)
                 : UIColor(ProjectTheme.signal)
             view.displayPriority = .required
@@ -661,5 +657,8 @@ private extension MKCoordinateRegion {
 }
 
 #Preview {
+    let container = try! ModelContainer(for: HazardPin.self, AudioRecording.self)
     ContentView()
+        .environmentObject(Coordinator(modelContainer: container))
+        .modelContainer(container)
 }
