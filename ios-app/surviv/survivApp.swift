@@ -14,6 +14,6 @@ struct survivApp: App {
         WindowGroup {
             ContentView()
         }
-        .modelContainer(for: HazardPin.self)
+        .modelContainer(for: [HazardPin.self, AudioRecording.self])
     }
 }
