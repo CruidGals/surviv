@@ -11,6 +11,18 @@ class SurvivNetworker: NSObject, ObservableObject {
     
     @Published var connectedPeers: [MCPeerID] = []
     @Published var incomingMessages: [SurvivPacket] = []
+    @Published var userRole: Role = .scout
+    @Published var seenMessageIds = Set<UUID>() // To prevent seeing a message twice
+    
+    // Make secret handshake for admin
+    private let secretHandshake: String = "Surviv"
+    
+    func promoteToAdmin(secret: String) {
+        if secret == secretHandshake {
+            self.userRole = .admin
+            print("Promoted to admin")
+        }
+    }
     
     override init() {
         super.init()
@@ -34,14 +46,27 @@ class SurvivNetworker: NSObject, ObservableObject {
     func broadcast(message: String) {
         guard !session.connectedPeers.isEmpty else { return }
         
-        let packet = SurvivPacket(senderName: myPeerID.displayName, message: message)
+        // permissions
+        guard userRole == .admin else {
+            print("Access denied: You are not an admin")
+            return
+        }
+        
+        let packet = SurvivPacket(senderName: myPeerID.displayName, role: .admin, message: message)
         if let data = packet.encode() {
             do {
                 try session.send(data, toPeers: session.connectedPeers, with: .reliable)
+                self.incomingMessages.append(packet)
+                self.seenMessageIds.insert(packet.id)
             } catch {
                 print("Error sending: \(error.localizedDescription)")
             }
         }
+    }
+    
+    func send(packet: SurvivPacket, toPeers peers: [MCPeerID]) {
+        guard !peers.isEmpty, let data = packet.encode() else { return }
+        try? session.send(data, toPeers: peers, with: .reliable)
     }
 }
 
@@ -53,9 +78,23 @@ extension SurvivNetworker: MCSessionDelegate {
     }
     
     func session(_ session: MCSession, didReceive data: Data, fromPeer peerID: MCPeerID) {
-        if let packet = SurvivPacket.decode(from: data) {
-            DispatchQueue.main.async {
+        guard let packet = SurvivPacket.decode(from: data) else { return }
+        
+        DispatchQueue.main.async {
+            // Prevent loop (infinite relaying)
+            if self.seenMessageIds.contains(packet.id) { return }
+            self.seenMessageIds.insert(packet.id)
+            
+            if packet.role == .admin {
                 self.incomingMessages.append(packet)
+                
+                // RELAY INFORMATION
+                let otherPeers = self.session.connectedPeers.filter {$0 != peerID}
+                if !otherPeers.isEmpty && packet.hopCount < 10 {
+                    var relayPacket = packet
+                    relayPacket.hopCount += 1 // Increase hop count to make sure message doesn't go everywhere
+                    self.send(packet: relayPacket, toPeers: otherPeers)
+                }
             }
         }
     }

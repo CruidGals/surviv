@@ -10,24 +10,29 @@ import MultipeerConnectivity
 
 struct DebugTerminalView: View {
     @StateObject var networker = SurvivNetworker()
-    @State private var textToSend = ""
+    @State private var messageInput = ""
+    @State private var secretInput = ""
+    @State private var showSecretField = false
 
     var body: some View {
         NavigationStack {
             VStack(spacing: 20) {
                 // SECTION 1: Peer Status
-                VStack(alignment: .leading) {
-                    Text("ACTIVE PEERS: \(networker.connectedPeers.count)")
-                        .font(.caption).bold()
-                    
-                    ForEach(networker.connectedPeers, id: \.self) { peer in
-                        Label(peer.displayName, systemImage: "iphone.radiowaves.left.and.right")
-                            .foregroundColor(.green)
+                HStack {
+                    VStack(alignment: .leading) {
+                        Text("DEVICE ROLE")
+                            .font(.caption2).foregroundColor(.gray)
+                        Text(networker.userRole.rawValue)
+                            .font(.headline)
+                            .foregroundColor(networker.userRole == .admin ? .red : .blue)
                     }
+                    Spacer()
+                    Text("\(networker.connectedPeers.count) Peers Online")
+                        .font(.caption).padding(6)
+                        .background(Capsule().stroke(Color.gray))
                 }
                 .padding()
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .background(Color.gray.opacity(0.1))
+                .background(Color(.secondarySystemBackground))
 
                 // SECTION 2: Message Log
                 List(networker.incomingMessages.reversed(), id: \.id) { packet in
@@ -37,22 +42,47 @@ struct DebugTerminalView: View {
                         Text(packet.timestamp, style: .time)
                             .font(.system(size: 8, design: .monospaced))
                     }
+                    .listRowSeparator(.hidden)
+                    .padding(8)
+                    .background(RoundedRectangle(cornerRadius: 8).fill(Color.gray.opacity(0.1)))
                 }
+                .listStyle(.plain)
 
                 // SECTION 3: Input
-                HStack {
-                    TextField("Enter test message...", text: $textToSend)
-                        .textFieldStyle(.roundedBorder)
-                    
-                    Button("Broadcast") {
-                        networker.broadcast(message: textToSend)
-                        textToSend = ""
+                VStack(spacing: 12) {
+                    if networker.userRole == .scout {
+                        if showSecretField {
+                            HStack {
+                                SecureField("Enter Secret...", text: $secretInput)
+                                    .textFieldStyle(.roundedBorder)
+                                Button("Confirm") {
+                                    networker.promoteToAdmin(secret: secretInput)
+                                    showSecretField = false
+                                }
+                            }
+                        } else {
+                            Button("REQUEST ADMIN PROMOTION") {
+                                showSecretField = true
+                            }
+                            .font(.caption).bold()
+                        }
+                    } else {
+                        // ADMIN BROADCASTING
+                        HStack {
+                            TextField("Broadcast Message...", text: $messageInput)
+                                .textFieldStyle(.roundedBorder)
+                            Button("SEND") {
+                                networker.broadcast(message: messageInput)
+                                messageInput = ""
+                            }
+                            .buttonStyle(.borderedProminent)
+                        }
                     }
-                    .buttonStyle(.borderedProminent)
                 }
                 .padding()
+                .background(Color(.secondarySystemBackground))
             }
-            .navigationTitle("Surviv Debug")
+            .navigationTitle("Surviv Node")
         }
     }
 }
