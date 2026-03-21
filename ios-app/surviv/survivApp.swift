@@ -11,19 +11,20 @@ import SwiftData
 @main
 struct survivApp: App {
     let modelContainer: ModelContainer
-    @StateObject private var coordinator: Coordinator
+    @StateObject private var appController: AppController
 
     init() {
         let container = try! ModelContainer(for: HazardPin.self, AudioRecording.self)
         self.modelContainer = container
-        self._coordinator = StateObject(wrappedValue: Coordinator(modelContainer: container))
+        self._appController = StateObject(wrappedValue: AppController(modelContainer: container))
     }
 
     var body: some Scene {
         WindowGroup {
-            ContentView()
-                .environmentObject(coordinator)
-                .onAppear { coordinator.start() }
+            RootSurvivView()
+                .environmentObject(appController.coordinator)
+                .environmentObject(appController.networker)
+                .onAppear { appController.coordinator.start() }
         }
         .modelContainer(modelContainer)
     }

@@ -30,6 +30,7 @@ final class HazardPin {
     }
 
     init(
+        id: UUID? = nil,
         latitude: Double,
         longitude: Double,
         pinType: PinType,
@@ -39,7 +40,7 @@ final class HazardPin {
         sourceDeviceID: String = "",
         timestamp: Date = .now
     ) {
-        self.id = UUID()
+        self.id = id ?? UUID()
         self.latitude = latitude
         self.longitude = longitude
         self.pinType = pinType

@@ -9,12 +9,15 @@ import SwiftUI
 import SwiftData
 import MapKit
 import Network
+import CoreLocation
 
 struct ContentView: View {
     @Environment(\.modelContext) private var modelContext
     @EnvironmentObject private var coordinator: Coordinator
+    @EnvironmentObject private var networker: SurvivNetworker
     @Query(sort: \HazardPin.timestamp, order: .reverse) private var pins: [HazardPin]
     @StateObject private var model = MapViewModel()
+    @State private var showSettings = false
 
     var body: some View {
         ZStack(alignment: .bottom) {
@@ -47,7 +50,20 @@ struct ContentView: View {
             .allowsHitTesting(false)
 
             VStack(spacing: 12) {
-                HeaderBar(isOnline: model.isOnline, hasOfflineArea: model.hasOfflineArea)
+                HeaderBar(
+                    isOnline: model.isOnline,
+                    hasOfflineArea: model.hasOfflineArea,
+                    meshPeerCount: networker.connectedPeers.count,
+                    onSettings: { showSettings = true }
+                )
+
+                if let ann = networker.latestAdminAnnouncement {
+                    StatusCard(
+                        title: "COMMAND ALERT",
+                        subtitle: "\(ann.senderName): \(ann.message)"
+                    )
+                    .onTapGesture { networker.dismissAnnouncementBanner() }
+                }
 
                 if let threat = coordinator.threatAlert {
                     StatusCard(title: "THREAT DETECTED", subtitle: "Acoustic sensor detected: \(threat)")
@@ -89,6 +105,21 @@ struct ContentView: View {
         .task {
             model.loadOfflineMetadata()
         }
+        .onAppear {
+            if let c = coordinator.locationManager.lastKnownMapCoordinate() {
+                model.centerOnUserIfNeeded(c)
+            }
+        }
+        .onChange(of: coordinator.locationRevision) { _, _ in
+            if let c = coordinator.locationManager.lastKnownMapCoordinate() {
+                model.centerOnUserIfNeeded(c)
+            }
+        }
+        .sheet(isPresented: $showSettings) {
+            CivilianSettingsSheet()
+                .presentationDetents([.medium])
+                .presentationCornerRadius(22)
+        }
     }
 }
 
@@ -107,30 +138,49 @@ enum ProjectTheme {
 private struct HeaderBar: View {
     let isOnline: Bool
     let hasOfflineArea: Bool
+    let meshPeerCount: Int
+    let onSettings: () -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text("SURVIV")
-                .font(.system(size: 26, weight: .black, design: .rounded))
-                .foregroundStyle(ProjectTheme.textPrimary)
+        HStack(alignment: .top, spacing: 12) {
+            VStack(alignment: .leading, spacing: 10) {
+                Text("SURVIV")
+                    .font(.system(size: 26, weight: .black, design: .rounded))
+                    .foregroundStyle(ProjectTheme.textPrimary)
 
-            Text("Mesh Crisis Map")
-                .font(.system(size: 13, weight: .semibold, design: .rounded))
-                .foregroundStyle(ProjectTheme.textSecondary)
+                Text("Mesh Crisis Map")
+                    .font(.system(size: 13, weight: .semibold, design: .rounded))
+                    .foregroundStyle(ProjectTheme.textSecondary)
 
-            HStack(spacing: 8) {
-                StatusChip(
-                    text: isOnline ? "Link Active" : "No Link",
-                    color: isOnline ? ProjectTheme.signal : ProjectTheme.warning,
-                    icon: isOnline ? "dot.radiowaves.left.and.right" : "wifi.slash"
-                )
+                HStack(spacing: 8) {
+                    StatusChip(
+                        text: isOnline ? "Internet" : "No Internet",
+                        color: isOnline ? ProjectTheme.signal : ProjectTheme.warning,
+                        icon: isOnline ? "wifi" : "wifi.slash"
+                    )
 
-                StatusChip(
-                    text: hasOfflineArea ? "Cache Ready" : "Cache Missing",
-                    color: hasOfflineArea ? ProjectTheme.signal : ProjectTheme.caution,
-                    icon: hasOfflineArea ? "internaldrive.fill" : "internaldrive"
-                )
+                    StatusChip(
+                        text: meshPeerCount > 0 ? "Mesh \(meshPeerCount)" : "Mesh Off",
+                        color: meshPeerCount > 0 ? ProjectTheme.signal : ProjectTheme.caution,
+                        icon: "dot.radiowaves.left.and.right"
+                    )
+
+                    StatusChip(
+                        text: hasOfflineArea ? "Cache Ready" : "Cache Missing",
+                        color: hasOfflineArea ? ProjectTheme.signal : ProjectTheme.caution,
+                        icon: hasOfflineArea ? "internaldrive.fill" : "internaldrive"
+                    )
+                }
             }
+            Spacer(minLength: 0)
+            Button(action: onSettings) {
+                Image(systemName: "gearshape.fill")
+                    .font(.system(size: 20, weight: .semibold))
+                    .foregroundStyle(ProjectTheme.textPrimary)
+                    .padding(10)
+                    .background(ProjectTheme.panelBorder.opacity(0.35), in: Circle())
+            }
+            .buttonStyle(.plain)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(14)
@@ -139,6 +189,79 @@ private struct HeaderBar: View {
             RoundedRectangle(cornerRadius: 16, style: .continuous)
                 .stroke(ProjectTheme.panelBorder, lineWidth: 1)
         )
+    }
+}
+
+private struct CivilianSettingsSheet: View {
+    @AppStorage("isAdmin") private var isAdmin = false
+    @Environment(\.dismiss) private var dismiss
+    @State private var showPasscodeEntry = false
+    @State private var passcodeInput = ""
+
+    var body: some View {
+        NavigationStack {
+            VStack(alignment: .leading, spacing: 20) {
+                Text("Settings")
+                    .font(.system(size: 28, weight: .black, design: .rounded))
+                    .foregroundStyle(ProjectTheme.textPrimary)
+
+                Toggle("Crisis mode (UI emphasis)", isOn: .constant(false))
+                    .disabled(true)
+                    .tint(ProjectTheme.warning)
+
+                Spacer()
+
+                Text("Version 1.0.0")
+                    .font(.system(size: 13, weight: .semibold, design: .rounded))
+                    .foregroundStyle(ProjectTheme.textSecondary)
+                    .frame(maxWidth: .infinity, alignment: .center)
+                    .onTapGesture(count: 5) {
+                        passcodeInput = ""
+                        showPasscodeEntry = true
+                    }
+            }
+            .padding(20)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(Color(red: 0.05, green: 0.07, blue: 0.09).ignoresSafeArea())
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Done") { dismiss() }
+                }
+            }
+            .sheet(isPresented: $showPasscodeEntry) {
+                NavigationStack {
+                    VStack(alignment: .leading, spacing: 16) {
+                        Text("Admin unlock")
+                            .font(.system(size: 22, weight: .heavy, design: .rounded))
+                        Text("Enter the operations passcode.")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                        SecureField("Passcode", text: $passcodeInput)
+                            .textContentType(.password)
+                            .padding(12)
+                            .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 10))
+                        Button("Unlock") {
+                            if passcodeInput == "1111" {
+                                isAdmin = true
+                                showPasscodeEntry = false
+                                dismiss()
+                            }
+                        }
+                        .buttonStyle(.borderedProminent)
+                        Spacer()
+                    }
+                    .padding(20)
+                    .navigationTitle("Unlock")
+                    .navigationBarTitleDisplayMode(.inline)
+                    .toolbar {
+                        ToolbarItem(placement: .cancellationAction) {
+                            Button("Cancel") { showPasscodeEntry = false }
+                        }
+                    }
+                }
+            }
+        }
     }
 }
 
@@ -301,11 +424,14 @@ private struct StatusCard: View {
 // MARK: - View Model
 
 final class MapViewModel: ObservableObject {
+    /// Placeholder until the first real GPS fix (via `centerOnUserIfNeeded`).
     @Published var region = MKCoordinateRegion(
-        center: CLLocationCoordinate2D(latitude: 31.5017, longitude: 34.4668),
+        center: CLLocationCoordinate2D(latitude: 37.336, longitude: -122.009),
         span: MKCoordinateSpan(latitudeDelta: 0.08, longitudeDelta: 0.08)
     )
     @Published var selectedPinType: PinType = .danger
+
+    private var didApplyUserLaunchLocation = false
     @Published var zoneRadiusMeters: Double = 120
     @Published var isDownloading = false
     @Published var downloadStatusMessage: String?
@@ -322,6 +448,14 @@ final class MapViewModel: ObservableObject {
 
     func selectPinType(_ type: PinType) {
         selectedPinType = type
+    }
+
+    /// Centers the map on the user once at launch when a valid coordinate is available.
+    func centerOnUserIfNeeded(_ coordinate: CLLocationCoordinate2D) {
+        guard !didApplyUserLaunchLocation else { return }
+        guard CLLocationCoordinate2DIsValid(coordinate) else { return }
+        didApplyUserLaunchLocation = true
+        region = MKCoordinateRegion(center: coordinate, span: region.span)
     }
 
     func loadOfflineMetadata() {
@@ -658,7 +792,9 @@ private extension MKCoordinateRegion {
 
 #Preview {
     let container = try! ModelContainer(for: HazardPin.self, AudioRecording.self)
+    let networker = SurvivNetworker()
     ContentView()
-        .environmentObject(Coordinator(modelContainer: container))
+        .environmentObject(Coordinator(modelContainer: container, networker: networker))
+        .environmentObject(networker)
         .modelContainer(container)
 }

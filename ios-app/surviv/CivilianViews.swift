@@ -9,7 +9,6 @@ enum CivilianTab {
 
 struct CivilianTabView: View {
     @ObservedObject var viewModel: SurvivViewModel
-    @Binding var isAdmin: Bool
     @State private var selectedTab: CivilianTab = .map
 
     var body: some View {
@@ -21,7 +20,7 @@ struct CivilianTabView: View {
                 case .scanner:
                     ScannerView()
                 case .settings:
-                    CivilianSettingsView(viewModel: viewModel, isAdmin: $isAdmin)
+                    CivilianSettingsView(viewModel: viewModel)
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -180,7 +179,9 @@ private struct ScannerView: View {
 
 private struct CivilianSettingsView: View {
     @ObservedObject var viewModel: SurvivViewModel
-    @Binding var isAdmin: Bool
+    @AppStorage("isAdmin") private var isAdmin = false
+    @State private var showPasscodeEntry = false
+    @State private var passcodeInput = ""
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -205,16 +206,45 @@ private struct CivilianSettingsView: View {
                 .foregroundStyle(SurvivTheme.textSecondary)
                 .frame(maxWidth: .infinity, alignment: .center)
                 .onTapGesture(count: 5) {
-                    Haptics.success()
-                    withAnimation(.spring(response: 0.5, dampingFraction: 0.82)) {
-                        isAdmin = true
-                    }
+                    passcodeInput = ""
+                    showPasscodeEntry = true
                 }
                 .padding(.bottom, 120)
         }
         .padding(20)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Color.black)
+        .sheet(isPresented: $showPasscodeEntry) {
+            NavigationStack {
+                VStack(alignment: .leading, spacing: 16) {
+                    Text("Admin unlock")
+                        .font(.system(size: 22, weight: .heavy, design: .rounded))
+                    Text("Enter the operations passcode.")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                    SecureField("Passcode", text: $passcodeInput)
+                        .textContentType(.password)
+                        .padding(12)
+                        .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 10))
+                    Button("Unlock") {
+                        if passcodeInput == "1111" {
+                            isAdmin = true
+                            showPasscodeEntry = false
+                        }
+                    }
+                    .buttonStyle(.borderedProminent)
+                    Spacer()
+                }
+                .padding(20)
+                .navigationTitle("Unlock")
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar {
+                    ToolbarItem(placement: .cancellationAction) {
+                        Button("Cancel") { showPasscodeEntry = false }
+                    }
+                }
+            }
+        }
     }
 }
 

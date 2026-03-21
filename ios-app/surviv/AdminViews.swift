@@ -1,16 +1,19 @@
 import SwiftUI
 import MapKit
+import SwiftData
 
 enum AdminTab {
     case masterMap
     case queue
-    case intel
+    case broadcast
     case node
 }
 
 struct AdminTabView: View {
-    @ObservedObject var viewModel: SurvivViewModel
     @Binding var isAdmin: Bool
+    @StateObject private var viewModel = SurvivViewModel()
+    @EnvironmentObject private var coordinator: Coordinator
+    @EnvironmentObject private var networker: SurvivNetworker
     @State private var selectedTab: AdminTab = .masterMap
 
     var body: some View {
@@ -18,11 +21,11 @@ struct AdminTabView: View {
             Group {
                 switch selectedTab {
                 case .masterMap:
-                    MasterMapView(viewModel: viewModel)
+                    MasterMapView()
                 case .queue:
                     ThreatQueueView(viewModel: viewModel)
-                case .intel:
-                    GeminiIntelView(viewModel: viewModel)
+                case .broadcast:
+                    AdminBroadcastView()
                 case .node:
                     NodeSetupView(isAdmin: $isAdmin)
                 }
@@ -37,18 +40,23 @@ struct AdminTabView: View {
 }
 
 private struct MasterMapView: View {
-    @ObservedObject var viewModel: SurvivViewModel
+    @EnvironmentObject private var coordinator: Coordinator
+    @Query(sort: \HazardPin.timestamp, order: .reverse) private var pins: [HazardPin]
+    @StateObject private var mapModel = MapViewModel()
 
     var body: some View {
         ZStack(alignment: .top) {
-            Map(coordinateRegion: $viewModel.region, annotationItems: viewModel.zones) { zone in
-                MapAnnotation(coordinate: zone.center) {
-                    Circle()
-                        .fill(zone.kind == .danger ? SurvivTheme.danger : SurvivTheme.safe)
-                        .frame(width: 18, height: 18)
-                        .overlay(Circle().stroke(.white, lineWidth: 2))
+            HazardMapView(
+                region: $mapModel.region,
+                pins: pins,
+                onDropPin: { coordinate in
+                    coordinator.dropHazardPin(
+                        at: coordinate,
+                        pinType: mapModel.selectedPinType,
+                        radiusMeters: mapModel.zoneRadiusMeters
+                    )
                 }
-            }
+            )
             .ignoresSafeArea()
 
             LinearGradient(
@@ -61,7 +69,11 @@ private struct MasterMapView: View {
 
             HStack(spacing: 10) {
                 Button {
-                    viewModel.drawAtCenter(.danger)
+                    coordinator.dropHazardPin(
+                        at: mapModel.region.center,
+                        pinType: .danger,
+                        radiusMeters: 340
+                    )
                 } label: {
                     Label("Draw Red Zone", systemImage: "pencil.and.outline")
                         .font(.system(size: 13, weight: .heavy, design: .rounded))
@@ -73,7 +85,11 @@ private struct MasterMapView: View {
                 .buttonStyle(.plain)
 
                 Button {
-                    viewModel.drawAtCenter(.safeRoute)
+                    coordinator.dropHazardPin(
+                        at: mapModel.region.center,
+                        pinType: .safeRoute,
+                        radiusMeters: 220
+                    )
                 } label: {
                     Label("Draw Green Route", systemImage: "point.topleft.down.curvedto.point.bottomright.up")
                         .font(.system(size: 13, weight: .heavy, design: .rounded))
@@ -89,6 +105,16 @@ private struct MasterMapView: View {
             .frame(maxWidth: .infinity)
         }
         .background(Color.black)
+        .onAppear {
+            if let c = coordinator.locationManager.lastKnownMapCoordinate() {
+                mapModel.centerOnUserIfNeeded(c)
+            }
+        }
+        .onChange(of: coordinator.locationRevision) { _, _ in
+            if let c = coordinator.locationManager.lastKnownMapCoordinate() {
+                mapModel.centerOnUserIfNeeded(c)
+            }
+        }
     }
 }
 
@@ -135,30 +161,62 @@ private struct ThreatQueueView: View {
     }
 }
 
-private struct GeminiIntelView: View {
-    @ObservedObject var viewModel: SurvivViewModel
+private struct AdminBroadcastView: View {
+    @EnvironmentObject private var networker: SurvivNetworker
+    @State private var messageInput = ""
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 12) {
-                Text("GEMINI INTEL")
-                    .font(.system(size: 30, weight: .black, design: .rounded))
-                    .foregroundStyle(.white)
+        NavigationStack {
+            VStack(spacing: 0) {
+                List {
+                    Section {
+                        ForEach(networker.incomingMessages.reversed(), id: \.id) { packet in
+                            VStack(alignment: .leading, spacing: 6) {
+                                Text(packet.senderName)
+                                    .font(.caption.weight(.bold))
+                                    .foregroundStyle(SurvivTheme.safe)
+                                Text(packet.message)
+                                    .font(.system(size: 15, weight: .semibold, design: .rounded))
+                                    .foregroundStyle(.white)
+                                Text(packet.timestamp, style: .time)
+                                    .font(.caption2)
+                                    .foregroundStyle(SurvivTheme.textSecondary)
+                            }
+                            .listRowBackground(Color.black.opacity(0.9))
+                        }
+                    } header: {
+                        Text("Mesh feed")
+                            .foregroundStyle(SurvivTheme.textSecondary)
+                    }
+                }
+                .scrollContentBackground(.hidden)
 
-                Text(viewModel.sitrepText)
-                    .font(.system(size: 13, weight: .semibold, design: .monospaced))
-                    .foregroundStyle(SurvivTheme.safe)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(16)
-                    .background(Color.black.opacity(0.72), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 16, style: .continuous)
-                            .stroke(SurvivTheme.safe.opacity(0.45), lineWidth: 1)
-                    )
+                VStack(alignment: .leading, spacing: 10) {
+                    TextField("Evacuate North…", text: $messageInput, axis: .vertical)
+                        .textFieldStyle(.roundedBorder)
+                        .lineLimit(3...6)
+                    Button {
+                        let trimmed = messageInput.trimmingCharacters(in: .whitespacesAndNewlines)
+                        guard !trimmed.isEmpty else { return }
+                        networker.broadcast(message: trimmed)
+                        messageInput = ""
+                    } label: {
+                        Label("Broadcast to mesh", systemImage: "antenna.radiowaves.left.and.right")
+                            .font(.system(size: 16, weight: .heavy, design: .rounded))
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 12)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .tint(SurvivTheme.danger)
+                }
+                .padding(16)
+                .background(.ultraThinMaterial)
             }
-            .padding(20)
+            .background(Color.black)
+            .navigationTitle("Announcements")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbarColorScheme(.dark, for: .navigationBar)
         }
-        .background(Color.black.ignoresSafeArea())
     }
 }
 
@@ -235,9 +293,9 @@ private struct AdminBottomBar: View {
                 Haptics.impact(.light)
                 selectedTab = .queue
             }
-            AdminTabButton(title: "Intel", icon: "terminal", isSelected: selectedTab == .intel) {
+            AdminTabButton(title: "Alert", icon: "megaphone.fill", isSelected: selectedTab == .broadcast) {
                 Haptics.impact(.light)
-                selectedTab = .intel
+                selectedTab = .broadcast
             }
             AdminTabButton(title: "Node", icon: "qrcode", isSelected: selectedTab == .node) {
                 Haptics.impact(.light)

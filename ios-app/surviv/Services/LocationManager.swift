@@ -7,6 +7,10 @@ final class LocationManager: NSObject, CLLocationManagerDelegate {
 
     var currentLocation: CLLocation?
     var authorizationStatus: CLAuthorizationStatus = .notDetermined
+    /// Bumps on each `didUpdateLocations` so SwiftUI can react before `CLLocation` is `Equatable`.
+    private(set) var locationFixCount = 0
+    /// Notifies owning `Coordinator` so `ObservableObject` views refresh (nested `@Observable` does not).
+    var onLocationFix: (() -> Void)?
 
     override init() {
         super.init()
@@ -30,6 +34,15 @@ final class LocationManager: NSObject, CLLocationManagerDelegate {
 
     func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
         currentLocation = locations.last
+        locationFixCount += 1
+        onLocationFix?()
+    }
+
+    /// Cached fix from `CLLocationManager` or last delegate update (whichever is available).
+    func lastKnownMapCoordinate() -> CLLocationCoordinate2D? {
+        if let c = currentLocation?.coordinate, CLLocationCoordinate2DIsValid(c) { return c }
+        if let c = manager.location?.coordinate, CLLocationCoordinate2DIsValid(c) { return c }
+        return nil
     }
 
     func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
