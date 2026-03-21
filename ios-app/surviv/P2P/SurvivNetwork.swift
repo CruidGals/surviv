@@ -9,6 +9,11 @@ class SurvivNetworker: NSObject, ObservableObject {
     private var advertiser: MCNearbyServiceAdvertiser!
     private var browser: MCNearbyServiceBrowser!
 
+    private let pendingMeshLock = NSLock()
+    private var pendingMeshPayloads: [Data] = []
+    private var hadConnectedPeers = false
+    private static let maxPendingMeshPayloads = 64
+
     @Published var connectedPeers: [MCPeerID] = []
     @Published var incomingMessages: [SurvivPacket] = []
     @Published var userRole: Role = .scout
@@ -35,7 +40,7 @@ class SurvivNetworker: NSObject, ObservableObject {
     override init() {
         super.init()
 
-        session = MCSession(peer: myPeerID, securityIdentity: nil, encryptionPreference: .required)
+        session = MCSession(peer: myPeerID, securityIdentity: nil, encryptionPreference: .optional)
         session.delegate = self
 
         advertiser = MCNearbyServiceAdvertiser(peer: myPeerID, discoveryInfo: nil, serviceType: serviceType)
@@ -68,9 +73,29 @@ class SurvivNetworker: NSObject, ObservableObject {
     }
 
     /// Civilians and admins: broadcast encoded JSON (e.g. ``HazardPinWire``). No role gate.
+    /// Queues payloads when offline; flushes when the first peer connects.
     func broadcastMeshJSON(_ data: Data) throws {
-        guard !session.connectedPeers.isEmpty else { return }
+        pendingMeshLock.lock()
+        if session.connectedPeers.isEmpty {
+            if pendingMeshPayloads.count < Self.maxPendingMeshPayloads {
+                pendingMeshPayloads.append(data)
+            }
+            pendingMeshLock.unlock()
+            return
+        }
+        pendingMeshLock.unlock()
         try session.send(data, toPeers: session.connectedPeers, with: .reliable)
+    }
+
+    private func flushPendingMeshPayloadsIfNeeded() {
+        pendingMeshLock.lock()
+        let batch = pendingMeshPayloads
+        pendingMeshPayloads.removeAll()
+        pendingMeshLock.unlock()
+        guard !batch.isEmpty, !session.connectedPeers.isEmpty else { return }
+        for data in batch {
+            try? session.send(data, toPeers: session.connectedPeers, with: .reliable)
+        }
     }
 
     func send(packet: SurvivPacket, toPeers peers: [MCPeerID]) {
@@ -82,7 +107,15 @@ class SurvivNetworker: NSObject, ObservableObject {
 extension SurvivNetworker: MCSessionDelegate {
     func session(_ session: MCSession, peer peerID: MCPeerID, didChange state: MCSessionState) {
         DispatchQueue.main.async {
-            self.connectedPeers = session.connectedPeers
+            let peers = session.connectedPeers
+            let nowConnected = !peers.isEmpty
+            if nowConnected, !self.hadConnectedPeers {
+                self.hadConnectedPeers = true
+                self.flushPendingMeshPayloadsIfNeeded()
+            } else if !nowConnected {
+                self.hadConnectedPeers = false
+            }
+            self.connectedPeers = peers
         }
     }
 

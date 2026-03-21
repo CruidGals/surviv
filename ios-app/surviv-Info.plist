@@ -7,5 +7,9 @@
 		<string>_surviv._tcp</string>
 		<string>_surviv._udp</string>
 	</array>
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>Surviv uses the local network to share hazard and safe-route pins with nearby phones.</string>
+	<key>NSBluetoothAlwaysUsageDescription</key>
+	<string>Surviv uses Bluetooth to find and connect to nearby devices for offline mesh networking.</string>
 </dict>
 </plist>
