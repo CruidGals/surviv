@@ -5,10 +5,9 @@ import CoreLocation
 final class LocationManager: NSObject, CLLocationManagerDelegate {
     private let manager = CLLocationManager()
 
-    /// Set to a coordinate to override GPS in the simulator. Set to nil for real device GPS.
-    #if DEBUG
-    static let simulatedLocation = CLLocation(latitude: 38.0438, longitude: -78.5095)
-    #endif
+    /// Hardcoded UVA location override. Remove this and set `useOverrideLocation = false` to restore real GPS.
+    static let overrideLocation = CLLocation(latitude: 38.0438, longitude: -78.5095)
+    private let useOverrideLocation = true
 
     var currentLocation: CLLocation?
     var authorizationStatus: CLAuthorizationStatus = .notDetermined
@@ -22,12 +21,10 @@ final class LocationManager: NSObject, CLLocationManagerDelegate {
         manager.delegate = self
         manager.desiredAccuracy = kCLLocationAccuracyBest
 
-        #if DEBUG
-        if currentLocation == nil {
-            currentLocation = Self.simulatedLocation
+        if useOverrideLocation {
+            currentLocation = Self.overrideLocation
             locationFixCount += 1
         }
-        #endif
     }
 
     func requestPermission() {
@@ -45,6 +42,7 @@ final class LocationManager: NSObject, CLLocationManagerDelegate {
     // MARK: - CLLocationManagerDelegate
 
     func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
+        guard !useOverrideLocation else { return }
         currentLocation = locations.last
         locationFixCount += 1
         onLocationFix?()
