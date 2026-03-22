@@ -393,7 +393,7 @@
 				DEVELOPMENT_TEAM = 7SFRRDTHGN;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_FILE = surviv-Info.plist;
+				INFOPLIST_FILE = "surviv-Info.plist";
 				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Surviv needs your location to tag hazard pins and threat detections with GPS coordinates.";
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Surviv uses the microphone to detect acoustic threats like gunfire, drones, and sirens.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
@@ -426,7 +426,7 @@
 				DEVELOPMENT_TEAM = 7SFRRDTHGN;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_FILE = surviv-Info.plist;
+				INFOPLIST_FILE = "surviv-Info.plist";
 				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Surviv needs your location to tag hazard pins and threat detections with GPS coordinates.";
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Surviv uses the microphone to detect acoustic threats like gunfire, drones, and sirens.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
