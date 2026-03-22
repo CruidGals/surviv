@@ -12,7 +12,7 @@ import Network
 import CoreLocation
 
 struct ContentView: View {
-    @Environment(\.modelContext) private var modelContext
+    @AppStorage("isAdmin") private var isAdmin = false
     @EnvironmentObject private var coordinator: Coordinator
     @EnvironmentObject private var networker: SurvivNetworker
     @Query(sort: \HazardPin.timestamp, order: .reverse) private var pins: [HazardPin]
@@ -20,23 +20,13 @@ struct ContentView: View {
     @State private var showSettings = false
     @State private var showBroadcastMessages = false
     @State private var leftToolbarExpanded: LeftToolbarExpandedItem? = nil
-    @State private var bottomHazardExpanded = false
 
     var body: some View {
         ZStack(alignment: .top) {
             HazardMapView(
                 region: $model.region,
                 pins: pins,
-                onDropPin: { coordinate in
-                    let pin = HazardPin(
-                        latitude: coordinate.latitude,
-                        longitude: coordinate.longitude,
-                        pinType: model.selectedPinType,
-                        radiusMeters: model.zoneRadiusMeters
-                    )
-                    modelContext.insert(pin)
-                    coordinator.broadcastPin(pin)
-                }
+                onDropPin: { _ in }
             )
             .ignoresSafeArea()
 
@@ -57,23 +47,6 @@ struct ContentView: View {
 
                 statusToastStack
                     .padding(.horizontal, 16)
-
-                BottomHazardChrome(
-                    isExpanded: $bottomHazardExpanded,
-                    selectedPinType: model.selectedPinType,
-                    zoneRadiusMeters: $model.zoneRadiusMeters,
-                    pinCount: pins.count,
-                    isDownloading: model.isDownloading,
-                    onSelectType: model.selectPinType(_:),
-                    onApplyRadiusToLast: {
-                        guard let last = pins.first else { return }
-                        last.radiusMeters = model.zoneRadiusMeters
-                    },
-                    onDownloadArea: model.downloadCurrentArea,
-                    onClearPins: {
-                        for pin in pins { modelContext.delete(pin) }
-                    }
-                )
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
 
@@ -106,13 +79,18 @@ struct ContentView: View {
                 model.centerOnUserIfNeeded(c)
             }
         }
+        .onChange(of: isAdmin) { _, newValue in
+            if newValue {
+                showSettings = false
+            }
+        }
         .sheet(isPresented: $showSettings) {
             CivilianSettingsSheet()
                 .presentationDetents([.medium])
                 .presentationCornerRadius(22)
         }
         .sheet(isPresented: $showBroadcastMessages) {
-            BroadcastMessagesSheet()
+            BroadcastMessagesSheet(networker: networker)
                 .presentationDetents([.medium, .large])
                 .presentationCornerRadius(22)
         }
@@ -344,7 +322,6 @@ private struct BottomHazardChrome: View {
     let onSelectType: (PinType) -> Void
     let onApplyRadiusToLast: () -> Void
     let onDownloadArea: () -> Void
-    let onClearPins: () -> Void
 
     var body: some View {
         VStack(spacing: 0) {
@@ -364,8 +341,7 @@ private struct BottomHazardChrome: View {
                     isDownloading: isDownloading,
                     onSelectType: onSelectType,
                     onApplyRadiusToLast: onApplyRadiusToLast,
-                    onDownloadArea: onDownloadArea,
-                    onClearPins: onClearPins
+                    onDownloadArea: onDownloadArea
                 )
                 .padding(.horizontal, 16)
                 .padding(.top, 4)
@@ -457,9 +433,19 @@ enum ProjectTheme {
 
 private struct CivilianSettingsSheet: View {
     @AppStorage("isAdmin") private var isAdmin = false
+    @AppStorage("profile.displayName") private var profileDisplayName = ""
     @Environment(\.dismiss) private var dismiss
     @State private var showPasscodeEntry = false
+    @State private var showProfileEditor = false
     @State private var passcodeInput = ""
+    @State private var unlockErrorText: String?
+    @State private var versionTapCount = 0
+    @State private var lastVersionTapAt = Date.distantPast
+
+    private var currentDisplayName: String {
+        let trimmed = profileDisplayName.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? "Not set" : trimmed
+    }
 
     var body: some View {
         NavigationStack {
@@ -468,20 +454,60 @@ private struct CivilianSettingsSheet: View {
                     .font(.system(size: 28, weight: .black, design: .rounded))
                     .foregroundStyle(ProjectTheme.textPrimary)
 
-                Toggle("Crisis mode (UI emphasis)", isOn: .constant(false))
-                    .disabled(true)
-                    .tint(ProjectTheme.warning)
+                VStack(alignment: .leading, spacing: 10) {
+                    Text("Profile")
+                        .font(.system(size: 12, weight: .heavy, design: .rounded))
+                        .foregroundStyle(ProjectTheme.textSecondary)
+
+                    HStack {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(currentDisplayName)
+                                .font(.system(size: 18, weight: .heavy, design: .rounded))
+                                .foregroundStyle(ProjectTheme.textPrimary)
+                            Text("Used for mesh broadcasts and alerts")
+                                .font(.system(size: 12, weight: .medium, design: .rounded))
+                                .foregroundStyle(ProjectTheme.textSecondary)
+                        }
+                        Spacer()
+                        Button("Edit") {
+                            showProfileEditor = true
+                        }
+                        .buttonStyle(.borderedProminent)
+                    }
+                    .padding(14)
+                    .background(ProjectTheme.panel, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 14, style: .continuous)
+                            .stroke(ProjectTheme.panelBorder, lineWidth: 1)
+                    )
+                }
+
+                VStack(alignment: .leading, spacing: 10) {
+                    Text("About")
+                        .font(.system(size: 12, weight: .heavy, design: .rounded))
+                        .foregroundStyle(ProjectTheme.textSecondary)
+
+                    HStack {
+                        Image(systemName: "info.circle")
+                            .foregroundStyle(ProjectTheme.textSecondary)
+                        Text("Version 1.0.0")
+                            .font(.system(size: 14, weight: .semibold, design: .rounded))
+                            .foregroundStyle(ProjectTheme.textPrimary)
+                        Spacer()
+                    }
+                    .padding(12)
+                    .background(ProjectTheme.panel, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 12, style: .continuous)
+                            .stroke(ProjectTheme.panelBorder, lineWidth: 1)
+                    )
+                    .contentShape(Rectangle())
+                    .onTapGesture {
+                        handleVersionTap()
+                    }
+                }
 
                 Spacer()
-
-                Text("Version 1.0.0")
-                    .font(.system(size: 13, weight: .semibold, design: .rounded))
-                    .foregroundStyle(ProjectTheme.textSecondary)
-                    .frame(maxWidth: .infinity, alignment: .center)
-                    .onTapGesture(count: 5) {
-                        passcodeInput = ""
-                        showPasscodeEntry = true
-                    }
             }
             .padding(20)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -502,13 +528,24 @@ private struct CivilianSettingsSheet: View {
                             .foregroundStyle(.secondary)
                         SecureField("Passcode", text: $passcodeInput)
                             .textContentType(.password)
+                            .keyboardType(.numberPad)
                             .padding(12)
                             .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 10))
+                        if let unlockErrorText {
+                            Text(unlockErrorText)
+                                .font(.system(size: 12, weight: .semibold, design: .rounded))
+                                .foregroundStyle(.red)
+                        }
                         Button("Unlock") {
-                            if passcodeInput == "1111" {
+                            let normalized = passcodeInput.trimmingCharacters(in: .whitespacesAndNewlines)
+                            if normalized == "1111" {
+                                unlockErrorText = nil
                                 isAdmin = true
                                 showPasscodeEntry = false
                                 dismiss()
+                            } else {
+                                unlockErrorText = "Incorrect passcode"
+                                Haptics.impact(.rigid)
                             }
                         }
                         .buttonStyle(.borderedProminent)
@@ -524,12 +561,46 @@ private struct CivilianSettingsSheet: View {
                     }
                 }
             }
+            .onChange(of: showPasscodeEntry) { _, isShown in
+                if isShown {
+                    unlockErrorText = nil
+                }
+            }
+            .sheet(isPresented: $showProfileEditor) {
+                ProfileNameSheet(
+                    storedName: $profileDisplayName,
+                    title: "Update profile",
+                    subtitle: "Choose a clear name so teammates can identify your transmissions."
+                )
+                .presentationDetents([.medium])
+                .presentationCornerRadius(22)
+            }
+        }
+    }
+
+    private func handleVersionTap() {
+        let now = Date()
+        // Allow a human-speed hidden gesture while avoiding accidental long-gap accumulation.
+        if now.timeIntervalSince(lastVersionTapAt) > 1.8 {
+            versionTapCount = 0
+        }
+
+        versionTapCount += 1
+        lastVersionTapAt = now
+        Haptics.impact(.light)
+
+        if versionTapCount >= 5 {
+            versionTapCount = 0
+            passcodeInput = ""
+            unlockErrorText = nil
+            showPasscodeEntry = true
         }
     }
 }
 
 private struct BroadcastMessagesSheet: View {
-    @EnvironmentObject private var networker: SurvivNetworker
+    /// Observed directly so the sheet reliably redraws when mesh-delivered admin packets append to ``SurvivNetworker/incomingMessages``.
+    @ObservedObject var networker: SurvivNetworker
     @Environment(\.dismiss) private var dismiss
 
     private var orderedPackets: [SurvivPacket] {
@@ -617,7 +688,6 @@ private struct ControlPanel: View {
     let onSelectType: (PinType) -> Void
     let onApplyRadiusToLast: () -> Void
     let onDownloadArea: () -> Void
-    let onClearPins: () -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -672,23 +742,15 @@ private struct ControlPanel: View {
                 Spacer()
             }
 
-            HStack(spacing: 10) {
-                Button(action: onDownloadArea) {
-                    Label(
-                        isDownloading ? "Caching..." : "Preload Area",
-                        systemImage: "arrow.down.circle"
-                    )
-                    .frame(maxWidth: .infinity)
-                }
-                .buttonStyle(.borderedProminent)
-                .disabled(isDownloading)
-
-                Button(action: onClearPins) {
-                    Label("Clear Zones", systemImage: "trash")
-                        .frame(maxWidth: .infinity)
-                }
-                .buttonStyle(.bordered)
+            Button(action: onDownloadArea) {
+                Label(
+                    isDownloading ? "Caching..." : "Preload Area",
+                    systemImage: "arrow.down.circle"
+                )
+                .frame(maxWidth: .infinity)
             }
+            .buttonStyle(.borderedProminent)
+            .disabled(isDownloading)
         }
         .padding(14)
         .background(ProjectTheme.panel, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
@@ -798,7 +860,7 @@ final class MapViewModel: ObservableObject {
         guard !isDownloading else { return }
 
         isDownloading = true
-        downloadStatusMessage = "Preparing local map cache..."
+        downloadStatusMessage = "Preparing local map cache"
 
         let targetRegion = region
         Task {
@@ -983,6 +1045,7 @@ struct HazardMapView: UIViewRepresentable {
 
     func makeUIView(context: Context) -> MKMapView {
         let mapView = MKMapView(frame: .zero)
+        mapView.mapType = .hybrid
         mapView.showsCompass = true
         mapView.showsScale = true
         mapView.isRotateEnabled = true
@@ -1130,9 +1193,14 @@ private extension MKCoordinateRegion {
 }
 
 #Preview {
-    let container = try! ModelContainer(for: HazardPin.self, AudioRecording.self)
+    let previewConfig = ModelConfiguration(isStoredInMemoryOnly: true)
+    let container = try! ModelContainer(
+        for: HazardPin.self,
+        AudioRecording.self,
+        configurations: previewConfig
+    )
     let networker = SurvivNetworker()
-    ContentView()
+    RootSurvivView()
         .environmentObject(Coordinator(modelContainer: container, networker: networker))
         .environmentObject(networker)
         .modelContainer(container)

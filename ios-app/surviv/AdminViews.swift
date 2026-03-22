@@ -4,48 +4,68 @@ import SwiftData
 
 enum AdminTab {
     case masterMap
-    case queue
     case broadcast
-    case node
 }
 
 struct AdminTabView: View {
     @Binding var isAdmin: Bool
-    @StateObject private var viewModel = SurvivViewModel()
-    @EnvironmentObject private var coordinator: Coordinator
     @EnvironmentObject private var networker: SurvivNetworker
     @State private var selectedTab: AdminTab = .masterMap
 
     var body: some View {
-        ZStack(alignment: .bottom) {
-            Group {
-                switch selectedTab {
-                case .masterMap:
-                    MasterMapView()
-                case .queue:
-                    ThreatQueueView(viewModel: viewModel)
-                case .broadcast:
-                    AdminBroadcastView()
-                case .node:
-                    NodeSetupView(isAdmin: $isAdmin)
-                }
+        Group {
+            switch selectedTab {
+            case .masterMap:
+                MasterMapView()
+            case .broadcast:
+                AdminBroadcastView()
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .safeAreaInset(edge: .bottom) {
             AdminBottomBar(selectedTab: $selectedTab)
                 .padding(.horizontal, 16)
-                .padding(.bottom, 14)
+                .padding(.top, 6)
+                .padding(.bottom, 8)
+                .background(.clear)
+        }
+        .overlay(alignment: .topTrailing) {
+            Button {
+                Haptics.impact(.medium)
+                isAdmin = false
+            } label: {
+                Label("Exit Admin", systemImage: "person")
+                    .font(.system(size: 12, weight: .heavy, design: .rounded))
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 8)
+                    .background(Color.black.opacity(0.56), in: Capsule())
+                    .overlay(
+                        Capsule().stroke(Color.white.opacity(0.3), lineWidth: 1)
+                    )
+            }
+            .buttonStyle(.plain)
+            .padding(.top, 12)
+            .padding(.trailing, 12)
+        }
+        .onAppear {
+            networker.applyAppAdminState(isAdmin)
+        }
+        .onChange(of: isAdmin) { _, newValue in
+            networker.applyAppAdminState(newValue)
         }
     }
 }
 
 private struct MasterMapView: View {
+    @Environment(\.modelContext) private var modelContext
     @EnvironmentObject private var coordinator: Coordinator
     @Query(sort: \HazardPin.timestamp, order: .reverse) private var pins: [HazardPin]
     @StateObject private var mapModel = MapViewModel()
+    @State private var bottomHazardExpanded = false
 
     var body: some View {
-        ZStack(alignment: .top) {
+        ZStack {
             HazardMapView(
                 region: $mapModel.region,
                 pins: pins,
@@ -67,42 +87,31 @@ private struct MasterMapView: View {
             .ignoresSafeArea()
             .allowsHitTesting(false)
 
-            HStack(spacing: 10) {
-                Button {
-                    coordinator.dropHazardPin(
-                        at: mapModel.region.center,
-                        pinType: .danger,
-                        radiusMeters: 340
-                    )
-                } label: {
-                    Label("Draw Red Zone", systemImage: "pencil.and.outline")
-                        .font(.system(size: 13, weight: .heavy, design: .rounded))
-                        .foregroundStyle(.white)
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 10)
-                        .background(SurvivTheme.danger.opacity(0.9), in: Capsule())
-                }
-                .buttonStyle(.plain)
+            VStack {
+                Spacer(minLength: 0)
 
-                Button {
-                    coordinator.dropHazardPin(
-                        at: mapModel.region.center,
-                        pinType: .safeRoute,
-                        radiusMeters: 220
-                    )
-                } label: {
-                    Label("Draw Green Route", systemImage: "point.topleft.down.curvedto.point.bottomright.up")
-                        .font(.system(size: 13, weight: .heavy, design: .rounded))
-                        .foregroundStyle(.white)
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 10)
-                        .background(SurvivTheme.safe.opacity(0.9), in: Capsule())
-                }
-                .buttonStyle(.plain)
+                AdminBottomHazardChrome(
+                    isExpanded: $bottomHazardExpanded,
+                    selectedPinType: mapModel.selectedPinType,
+                    zoneRadiusMeters: $mapModel.zoneRadiusMeters,
+                    pinCount: pins.count,
+                    onSelectType: mapModel.selectPinType(_:),
+                    onApplyRadiusToLast: {
+                        guard let last = pins.first else { return }
+                        last.radiusMeters = mapModel.zoneRadiusMeters
+                    },
+                    onUndoLastPin: {
+                        guard let last = pins.first else { return }
+                        modelContext.delete(last)
+                        try? modelContext.save()
+                    },
+                    onClearAllPins: {
+                        for pin in pins { modelContext.delete(pin) }
+                        try? modelContext.save()
+                    }
+                )
             }
-            .padding(.top, 16)
-            .padding(.horizontal, 16)
-            .frame(maxWidth: .infinity)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
         }
         .background(Color.black)
         .onAppear {
@@ -118,46 +127,211 @@ private struct MasterMapView: View {
     }
 }
 
-private struct ThreatQueueView: View {
-    @ObservedObject var viewModel: SurvivViewModel
+private struct AdminBottomHazardChrome: View {
+    @Binding var isExpanded: Bool
+    let selectedPinType: PinType
+    @Binding var zoneRadiusMeters: Double
+    let pinCount: Int
+    let onSelectType: (PinType) -> Void
+    let onApplyRadiusToLast: () -> Void
+    let onUndoLastPin: () -> Void
+    let onClearAllPins: () -> Void
 
     var body: some View {
-        NavigationStack {
-            List {
-                ForEach(viewModel.threatQueue) { item in
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text(item.type)
-                            .font(.system(size: 18, weight: .heavy, design: .rounded))
-                            .foregroundStyle(.white)
-                        HStack {
-                            Text(item.timeLabel)
-                            Text("•")
-                            Text(item.distanceLabel)
-                        }
-                        .font(.system(size: 12, weight: .semibold, design: .rounded))
-                        .foregroundStyle(SurvivTheme.textSecondary)
-                    }
-                    .padding(.vertical, 8)
-                    .listRowBackground(Color.black)
-                    .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-                        Button("Quarantine", role: .destructive) {
-                            viewModel.quarantine(item)
-                        }
-                    }
-                    .swipeActions(edge: .leading, allowsFullSwipe: true) {
-                        Button("Broadcast") {
-                            viewModel.broadcast(item)
-                        }
-                        .tint(SurvivTheme.safe)
+        VStack(spacing: 0) {
+            RoundedRectangle(cornerRadius: 3, style: .continuous)
+                .fill(Color.white.opacity(0.38))
+                .frame(width: 40, height: 5)
+                .padding(.vertical, 10)
+                .frame(maxWidth: .infinity)
+                .contentShape(Rectangle())
+                .onTapGesture {
+                    withAnimation(.spring(response: 0.42, dampingFraction: 0.86)) {
+                        isExpanded.toggle()
                     }
                 }
+
+            if isExpanded {
+                AdminMappingPanel(
+                    selectedPinType: selectedPinType,
+                    zoneRadiusMeters: $zoneRadiusMeters,
+                    pinCount: pinCount,
+                    onSelectType: onSelectType,
+                    onApplyRadiusToLast: onApplyRadiusToLast,
+                    onUndoLastPin: onUndoLastPin,
+                    onClearAllPins: onClearAllPins
+                )
+                .padding(.horizontal, 16)
+                .padding(.top, 4)
+                .padding(.bottom, 4)
+                .transition(.move(edge: .bottom).combined(with: .opacity))
+            } else {
+                Button {
+                    withAnimation(.spring(response: 0.42, dampingFraction: 0.86)) {
+                        isExpanded = true
+                    }
+                } label: {
+                    HStack(spacing: 10) {
+                        Image(systemName: "shield.lefthalf.filled.trianglebadge.exclamationmark")
+                            .font(.system(size: 16, weight: .semibold))
+                            .foregroundStyle(Color(red: 0.94, green: 0.67, blue: 0.15))
+                        Text("Hazard map")
+                            .font(.system(size: 16, weight: .heavy, design: .rounded))
+                            .foregroundStyle(.white)
+                        Spacer()
+                        Text("\(pinCount) zones")
+                            .font(.system(size: 12, weight: .bold, design: .rounded))
+                            .foregroundStyle(Color.white.opacity(0.78))
+                        Image(systemName: "chevron.up")
+                            .font(.system(size: 13, weight: .bold))
+                            .foregroundStyle(Color.white.opacity(0.78))
+                    }
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 12)
+                    .background(Color(red: 0.07, green: 0.11, blue: 0.14).opacity(0.84), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 14, style: .continuous)
+                            .stroke(Color.white.opacity(0.18), lineWidth: 1)
+                    )
+                }
+                .buttonStyle(.plain)
+                .padding(.horizontal, 16)
+                .padding(.top, 4)
+                .padding(.bottom, 8)
+                .transition(.opacity)
             }
-            .scrollContentBackground(.hidden)
-            .background(Color.black)
-            .navigationTitle("Threat Queue")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbarColorScheme(.dark, for: .navigationBar)
         }
+        .contentShape(Rectangle())
+        .gesture(
+            DragGesture(minimumDistance: 12)
+                .onEnded { value in
+                    let dy = value.translation.height
+                    if isExpanded, dy > 28 {
+                        withAnimation(.spring(response: 0.42, dampingFraction: 0.86)) {
+                            isExpanded = false
+                        }
+                    } else if !isExpanded, dy < -28 {
+                        withAnimation(.spring(response: 0.42, dampingFraction: 0.86)) {
+                            isExpanded = true
+                        }
+                    }
+                }
+        )
+        .animation(.spring(response: 0.42, dampingFraction: 0.86), value: isExpanded)
+        .safeAreaPadding(.bottom, 8)
+    }
+}
+
+private struct AdminMappingPanel: View {
+    let selectedPinType: PinType
+    @Binding var zoneRadiusMeters: Double
+    let pinCount: Int
+    let onSelectType: (PinType) -> Void
+    let onApplyRadiusToLast: () -> Void
+    let onUndoLastPin: () -> Void
+    let onClearAllPins: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Hazard Mapping")
+                .font(.system(size: 20, weight: .heavy, design: .rounded))
+                .foregroundStyle(.white)
+            Text("Choose a zone type, then tap the map to place it.")
+                .font(.system(size: 13, weight: .medium, design: .rounded))
+                .foregroundStyle(Color.white.opacity(0.78))
+
+            HStack(spacing: 8) {
+                AdminZoneTypeButton(
+                    title: "Danger",
+                    icon: "exclamationmark.triangle.fill",
+                    color: Color(red: 0.90, green: 0.20, blue: 0.20),
+                    isSelected: selectedPinType == .danger,
+                    onTap: { onSelectType(.danger) }
+                )
+
+                AdminZoneTypeButton(
+                    title: "Safe Route",
+                    icon: "figure.walk.diamond.fill",
+                    color: Color(red: 0.12, green: 0.72, blue: 0.52),
+                    isSelected: selectedPinType == .safeRoute,
+                    onTap: { onSelectType(.safeRoute) }
+                )
+            }
+
+            VStack(alignment: .leading, spacing: 6) {
+                HStack {
+                    Text("Zone Radius")
+                        .font(.system(size: 12, weight: .bold, design: .rounded))
+                        .foregroundStyle(Color.white.opacity(0.78))
+                    Spacer()
+                    Text("\(Int(zoneRadiusMeters)) m")
+                        .font(.system(size: 12, weight: .bold, design: .rounded))
+                        .foregroundStyle(.white)
+                }
+                Slider(value: $zoneRadiusMeters, in: 50...800, step: 10)
+                    .tint(selectedPinType == .danger ? Color(red: 0.90, green: 0.20, blue: 0.20) : Color(red: 0.12, green: 0.72, blue: 0.52))
+                Button(action: onApplyRadiusToLast) {
+                    Label("Apply Radius To Last Zone", systemImage: "arrow.uturn.backward.circle")
+                        .font(.system(size: 12, weight: .semibold, design: .rounded))
+                }
+                .buttonStyle(.bordered)
+            }
+
+            HStack {
+                Label("\(pinCount) Hazard Zones", systemImage: "shield.lefthalf.filled.trianglebadge.exclamationmark")
+                    .font(.system(size: 13, weight: .bold, design: .rounded))
+                    .foregroundStyle(Color(red: 0.94, green: 0.67, blue: 0.15))
+                Spacer()
+            }
+
+            VStack(spacing: 8) {
+                Button(action: onUndoLastPin) {
+                    Label("Undo Last Zone", systemImage: "arrow.uturn.backward")
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.bordered)
+                .tint(.orange)
+                .disabled(pinCount == 0)
+
+                Button(action: onClearAllPins) {
+                    Label("Clear All Zones", systemImage: "trash")
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.bordered)
+                .tint(.red)
+                .disabled(pinCount == 0)
+            }
+        }
+        .padding(14)
+        .background(Color(red: 0.07, green: 0.11, blue: 0.14).opacity(0.84), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .stroke(Color.white.opacity(0.18), lineWidth: 1)
+        )
+    }
+}
+
+private struct AdminZoneTypeButton: View {
+    let title: String
+    let icon: String
+    let color: Color
+    let isSelected: Bool
+    let onTap: () -> Void
+
+    var body: some View {
+        Button(action: onTap) {
+            Label(title, systemImage: icon)
+                .font(.system(size: 12, weight: .bold, design: .rounded))
+                .foregroundStyle(.white)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 9)
+                .background(color.opacity(isSelected ? 0.95 : 0.45), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        .stroke(color.opacity(isSelected ? 1 : 0.55), lineWidth: isSelected ? 2 : 1)
+                )
+        }
+        .buttonStyle(.plain)
     }
 }
 
@@ -167,30 +341,30 @@ private struct AdminBroadcastView: View {
 
     var body: some View {
         NavigationStack {
-            VStack(spacing: 0) {
-                List {
-                    Section {
-                        ForEach(networker.incomingMessages.reversed(), id: \.id) { packet in
-                            VStack(alignment: .leading, spacing: 6) {
-                                Text(packet.senderName)
-                                    .font(.caption.weight(.bold))
-                                    .foregroundStyle(SurvivTheme.safe)
-                                Text(packet.message)
-                                    .font(.system(size: 15, weight: .semibold, design: .rounded))
-                                    .foregroundStyle(.white)
-                                Text(packet.timestamp, style: .time)
-                                    .font(.caption2)
-                                    .foregroundStyle(SurvivTheme.textSecondary)
-                            }
-                            .listRowBackground(Color.black.opacity(0.9))
+            List {
+                Section {
+                    ForEach(networker.incomingMessages.reversed(), id: \.id) { packet in
+                        VStack(alignment: .leading, spacing: 6) {
+                            Text(packet.senderName)
+                                .font(.caption.weight(.bold))
+                                .foregroundStyle(SurvivTheme.safe)
+                            Text(packet.message)
+                                .font(.system(size: 15, weight: .semibold, design: .rounded))
+                                .foregroundStyle(.white)
+                            Text(packet.timestamp, style: .time)
+                                .font(.caption2)
+                                .foregroundStyle(SurvivTheme.textSecondary)
                         }
-                    } header: {
-                        Text("Mesh feed")
-                            .foregroundStyle(SurvivTheme.textSecondary)
+                        .listRowBackground(Color.black.opacity(0.9))
                     }
+                } header: {
+                    Text("Mesh feed")
+                        .foregroundStyle(SurvivTheme.textSecondary)
                 }
-                .scrollContentBackground(.hidden)
-
+            }
+            .scrollContentBackground(.hidden)
+            .background(Color.black)
+            .safeAreaInset(edge: .bottom, spacing: 10) {
                 VStack(alignment: .leading, spacing: 10) {
                     TextField("Evacuate North…", text: $messageInput, axis: .vertical)
                         .textFieldStyle(.roundedBorder)
@@ -211,72 +385,12 @@ private struct AdminBroadcastView: View {
                 }
                 .padding(16)
                 .background(.ultraThinMaterial)
+                .padding(.bottom, 70)
             }
-            .background(Color.black)
             .navigationTitle("Announcements")
             .navigationBarTitleDisplayMode(.inline)
             .toolbarColorScheme(.dark, for: .navigationBar)
         }
-    }
-}
-
-private struct NodeSetupView: View {
-    @Binding var isAdmin: Bool
-    @State private var pulse = false
-
-    var body: some View {
-        ZStack {
-            Color.black.ignoresSafeArea()
-
-            VStack(spacing: 18) {
-                Spacer(minLength: 24)
-                Text("Anchor Node Active")
-                    .font(.system(size: 30, weight: .black, design: .rounded))
-                    .foregroundStyle(.white)
-
-                Text("Ready for Civilian Sync")
-                    .font(.system(size: 13, weight: .semibold, design: .rounded))
-                    .foregroundStyle(SurvivTheme.textSecondary)
-
-                ZStack {
-                    Circle()
-                        .stroke(SurvivTheme.safe.opacity(0.28), lineWidth: 6)
-                        .frame(width: pulse ? 320 : 240, height: pulse ? 320 : 240)
-                        .animation(.easeInOut(duration: 1.2).repeatForever(autoreverses: true), value: pulse)
-
-                    RoundedRectangle(cornerRadius: 24, style: .continuous)
-                        .fill(.ultraThinMaterial)
-                        .frame(width: 250, height: 250)
-                        .overlay(
-                            Image(systemName: "qrcode")
-                                .resizable()
-                                .scaledToFit()
-                                .foregroundStyle(.white)
-                                .padding(34)
-                        )
-                }
-
-                Spacer()
-
-                Button {
-                    Haptics.success()
-                    withAnimation(.spring(response: 0.45, dampingFraction: 0.84)) {
-                        isAdmin = false
-                    }
-                } label: {
-                    Text("Demote to Civilian")
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 14)
-                        .font(.system(size: 18, weight: .black, design: .rounded))
-                        .foregroundStyle(.white)
-                        .background(SurvivTheme.danger.opacity(0.9), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-                }
-                .buttonStyle(.plain)
-                .padding(.horizontal, 20)
-                .padding(.bottom, 120)
-            }
-        }
-        .onAppear { pulse = true }
     }
 }
 
@@ -289,17 +403,9 @@ private struct AdminBottomBar: View {
                 Haptics.impact(.light)
                 selectedTab = .masterMap
             }
-            AdminTabButton(title: "Queue", icon: "tray.full", isSelected: selectedTab == .queue) {
-                Haptics.impact(.light)
-                selectedTab = .queue
-            }
             AdminTabButton(title: "Alert", icon: "megaphone.fill", isSelected: selectedTab == .broadcast) {
                 Haptics.impact(.light)
                 selectedTab = .broadcast
-            }
-            AdminTabButton(title: "Node", icon: "qrcode", isSelected: selectedTab == .node) {
-                Haptics.impact(.light)
-                selectedTab = .node
             }
         }
         .padding(8)
