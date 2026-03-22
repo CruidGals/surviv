@@ -19,12 +19,14 @@ struct ContentView: View {
     @StateObject private var model = MapViewModel()
     @State private var showSettings = false
     @State private var showBroadcastMessages = false
+    @State private var selectedHazardPinDetailId: UUID?
     @State private var leftToolbarExpanded: LeftToolbarExpandedItem? = nil
 
     var body: some View {
         ZStack(alignment: .top) {
             HazardMapView(
                 region: $model.region,
+                selectedPinId: $selectedHazardPinDetailId,
                 pins: pins,
                 userLocation: coordinator.locationManager.lastKnownMapCoordinate(),
                 onDropPin: { _ in }
@@ -94,6 +96,14 @@ struct ContentView: View {
             BroadcastMessagesSheet(networker: networker)
                 .presentationDetents([.medium, .large])
                 .presentationCornerRadius(22)
+        }
+        .sheet(isPresented: Binding(
+            get: { selectedHazardPinDetailId != nil },
+            set: { if !$0 { selectedHazardPinDetailId = nil } }
+        )) {
+            if let id = selectedHazardPinDetailId, let pin = pins.first(where: { $0.id == id }) {
+                HazardPinDetailSheet(pin: pin)
+            }
         }
     }
 
@@ -1049,15 +1059,18 @@ private final class OfflineMapCacheManager {
 
 struct HazardMapView: UIViewRepresentable {
     @Binding var region: MKCoordinateRegion
+    @Binding var selectedPinId: UUID?
     let pins: [HazardPin]
     let userLocation: CLLocationCoordinate2D?
     let onDropPin: (CLLocationCoordinate2D) -> Void
 
     final class PinAnnotation: NSObject, MKAnnotation {
+        let pinID: UUID
         let coordinate: CLLocationCoordinate2D
         let pinType: PinType
 
-        init(coordinate: CLLocationCoordinate2D, pinType: PinType) {
+        init(pinID: UUID, coordinate: CLLocationCoordinate2D, pinType: PinType) {
+            self.pinID = pinID
             self.coordinate = coordinate
             self.pinType = pinType
         }
@@ -1128,7 +1141,7 @@ struct HazardMapView: UIViewRepresentable {
             mapView.removeAnnotations(existingAnnotations)
 
             let newAnnotations = pins.map { pin in
-                PinAnnotation(coordinate: pin.coordinate, pinType: pin.pinType)
+                PinAnnotation(pinID: pin.id, coordinate: pin.coordinate, pinType: pin.pinType)
             }
             mapView.addAnnotations(newAnnotations)
 
@@ -1158,6 +1171,7 @@ struct HazardMapView: UIViewRepresentable {
                   let mapView = recognizer.view as? MKMapView else { return }
 
             let point = recognizer.location(in: mapView)
+            if Self.hitAnnotationSubview(at: point, in: mapView) { return }
             let coordinate = mapView.convert(point, toCoordinateFrom: mapView)
             parent.onDropPin(coordinate)
         }
@@ -1167,8 +1181,25 @@ struct HazardMapView: UIViewRepresentable {
                   let mapView = recognizer.view as? MKMapView else { return }
 
             let point = recognizer.location(in: mapView)
+            if Self.hitAnnotationSubview(at: point, in: mapView) { return }
             let coordinate = mapView.convert(point, toCoordinateFrom: mapView)
             parent.onDropPin(coordinate)
+        }
+
+        /// Avoid placing a new pin when the user is interacting with a marker.
+        private static func hitAnnotationSubview(at point: CGPoint, in mapView: MKMapView) -> Bool {
+            var view: UIView? = mapView.hitTest(point, with: nil)
+            while let v = view {
+                if v is MKAnnotationView { return true }
+                view = v.superview
+            }
+            return false
+        }
+
+        func mapView(_ mapView: MKMapView, didSelect view: MKAnnotationView) {
+            guard let ann = view.annotation as? PinAnnotation else { return }
+            parent.$selectedPinId.wrappedValue = ann.pinID
+            mapView.deselectAnnotation(ann, animated: false)
         }
 
         func mapView(_ mapView: MKMapView, regionWillChangeAnimated animated: Bool) {

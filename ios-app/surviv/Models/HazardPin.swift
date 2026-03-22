@@ -22,6 +22,9 @@ final class HazardPin {
     var threatSource: ThreatSource
     var radiusMeters: Double
     var label: String
+    var createdByUsername: String = ""
+    var threatClassLabel: String = ""
+    var reasonMessage: String = ""
     var sourceDeviceID: String
     var timestamp: Date
 
@@ -37,6 +40,9 @@ final class HazardPin {
         threatSource: ThreatSource = .manual,
         radiusMeters: Double = 120,
         label: String = "",
+        createdByUsername: String = "",
+        threatClassLabel: String = "",
+        reasonMessage: String = "",
         sourceDeviceID: String = "",
         timestamp: Date = .now
     ) {
@@ -47,6 +53,9 @@ final class HazardPin {
         self.threatSource = threatSource
         self.radiusMeters = radiusMeters
         self.label = label
+        self.createdByUsername = createdByUsername
+        self.threatClassLabel = threatClassLabel
+        self.reasonMessage = reasonMessage
         self.sourceDeviceID = sourceDeviceID
         self.timestamp = timestamp
     }

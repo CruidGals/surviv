@@ -57,12 +57,32 @@ struct AdminTabView: View {
     }
 }
 
+private struct PendingAdminPinDraft: Identifiable {
+    let id = UUID()
+    let coordinate: CLLocationCoordinate2D
+    let pinType: PinType
+    let radiusMeters: Double
+}
+
+private enum MasterMapActiveSheet: Identifiable {
+    case compose(PendingAdminPinDraft)
+    case detail(UUID)
+
+    var id: String {
+        switch self {
+        case .compose(let d): return "compose-\(d.id.uuidString)"
+        case .detail(let u): return "detail-\(u.uuidString)"
+        }
+    }
+}
+
 private struct MasterMapView: View {
     @Environment(\.modelContext) private var modelContext
     @EnvironmentObject private var coordinator: Coordinator
     @Query(sort: \HazardPin.timestamp, order: .reverse) private var pins: [HazardPin]
     @StateObject private var mapModel = MapViewModel()
     @State private var bottomHazardExpanded = false
+    @State private var activeSheet: MasterMapActiveSheet?
 
     /// Cluster overlapping danger zones into combined zones
     private var clusteredPins: [HazardPin] {
@@ -125,6 +145,9 @@ private struct MasterMapView: View {
             threatSource: pins[0].threatSource,
             radiusMeters: maxDistance,
             label: "Combined (\(pins.count))",
+            createdByUsername: pins[0].createdByUsername,
+            threatClassLabel: pins[0].threatClassLabel,
+            reasonMessage: pins[0].reasonMessage,
             sourceDeviceID: pins[0].sourceDeviceID,
             timestamp: pins[0].timestamp
         )
@@ -135,13 +158,28 @@ private struct MasterMapView: View {
         ZStack {
             HazardMapView(
                 region: $mapModel.region,
+                selectedPinId: Binding(
+                    get: {
+                        if case .detail(let uuid) = activeSheet { return uuid }
+                        return nil
+                    },
+                    set: { newValue in
+                        if let uuid = newValue {
+                            activeSheet = .detail(uuid)
+                        } else if case .detail = activeSheet {
+                            activeSheet = nil
+                        }
+                    }
+                ),
                 pins: clusteredPins,
                 userLocation: coordinator.locationManager.lastKnownMapCoordinate(),
                 onDropPin: { coordinate in
-                    coordinator.dropHazardPin(
-                        at: coordinate,
-                        pinType: mapModel.selectedPinType,
-                        radiusMeters: mapModel.zoneRadiusMeters
+                    activeSheet = .compose(
+                        PendingAdminPinDraft(
+                            coordinate: coordinate,
+                            pinType: mapModel.selectedPinType,
+                            radiusMeters: mapModel.zoneRadiusMeters
+                        )
                     )
                 }
             )
@@ -190,6 +228,32 @@ private struct MasterMapView: View {
         .onChange(of: coordinator.locationRevision) { _, _ in
             if let c = coordinator.locationManager.lastKnownMapCoordinate() {
                 mapModel.centerOnUserIfNeeded(c)
+            }
+        }
+        .sheet(item: $activeSheet) { token in
+            switch token {
+            case .compose(let draft):
+                AdminHazardPinComposeSheet(
+                    pinType: draft.pinType,
+                    onCancel: { activeSheet = nil },
+                    onCommit: { threatClass, reason, label in
+                        coordinator.dropHazardPin(
+                            at: draft.coordinate,
+                            pinType: draft.pinType,
+                            radiusMeters: draft.radiusMeters,
+                            threatClassLabel: threatClass,
+                            reasonMessage: reason,
+                            label: label
+                        )
+                        activeSheet = nil
+                    }
+                )
+            case .detail(let id):
+                if let pin = pins.first(where: { $0.id == id }) {
+                    HazardPinDetailSheet(pin: pin)
+                } else {
+                    Color.clear.onAppear { activeSheet = nil }
+                }
             }
         }
     }
