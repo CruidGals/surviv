@@ -13,7 +13,6 @@ import CoreLocation
 
 struct ContentView: View {
     @AppStorage("isAdmin") private var isAdmin = false
-    @Environment(\.modelContext) private var modelContext
     @EnvironmentObject private var coordinator: Coordinator
     @EnvironmentObject private var networker: SurvivNetworker
     @Query(sort: \HazardPin.timestamp, order: .reverse) private var pins: [HazardPin]
@@ -21,25 +20,13 @@ struct ContentView: View {
     @State private var showSettings = false
     @State private var showBroadcastMessages = false
     @State private var leftToolbarExpanded: LeftToolbarExpandedItem? = nil
-    @State private var bottomHazardExpanded = false
 
     var body: some View {
         ZStack(alignment: .top) {
             HazardMapView(
                 region: $model.region,
                 pins: pins,
-                onDropPin: { coordinate in
-                    let pin = HazardPin(
-                        latitude: coordinate.latitude,
-                        longitude: coordinate.longitude,
-                        pinType: model.selectedPinType,
-                        threatSource: .manual,
-                        radiusMeters: model.zoneRadiusMeters,
-                        label: model.selectedPinType == .danger ? "Manual hazard" : "Manual safe route"
-                    )
-                    modelContext.insert(pin)
-                    coordinator.broadcastPin(pin)
-                }
+                onDropPin: { _ in }
             )
             .ignoresSafeArea()
 
@@ -60,20 +47,6 @@ struct ContentView: View {
 
                 statusToastStack
                     .padding(.horizontal, 16)
-
-                BottomHazardChrome(
-                    isExpanded: $bottomHazardExpanded,
-                    selectedPinType: model.selectedPinType,
-                    zoneRadiusMeters: $model.zoneRadiusMeters,
-                    pinCount: pins.count,
-                    isDownloading: model.isDownloading,
-                    onSelectType: model.selectPinType(_:),
-                    onApplyRadiusToLast: {
-                        guard let last = pins.first else { return }
-                        last.radiusMeters = model.zoneRadiusMeters
-                    },
-                    onDownloadArea: model.downloadCurrentArea
-                )
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
 
