@@ -81,7 +81,7 @@ private struct SplashView: View {
                     .scaleEffect(logoScale)
                     .opacity(logoOpacity)
 
-                Text("Stay connected when the world goes dark.")
+                Text("Stay connected when the world goes dark")
                     .font(.system(size: 16, weight: .semibold, design: .rounded))
                     .foregroundStyle(.white.opacity(0.78))
                     .multilineTextAlignment(.center)
