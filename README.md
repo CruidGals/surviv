@@ -1,154 +1,106 @@
 # Surviv
 
 <p align="center">
-	<img src="surviv_logo.png" alt="Surviv Logo" width="360" />
+  <img src="surviv_logo.png" alt="Surviv Logo" width="320" />
 </p>
 
-Surviv is a decentralized, offline mesh network app that turns ordinary iPhones into secure communication lifelines for civilians, journalists, and medical workers in conflict zones.
-
-When cellular and internet networks are down, blocked, or unsafe, Surviv still works. It enables anonymous peer-to-peer messaging, real-time hazard alerts, and on-device AI threat detection. Critical reports such as gunfire locations, shelling zones, and safer movement corridors can move through encrypted multi-hop relay chains from phone to phone.
-
-## App Screenshots
+Surviv is an offline-first crisis response app for iOS. It lets nearby phones form a local mesh to share warnings, map threats, and coordinate safer movement when cellular and internet access are unreliable or unavailable.
 
 <p align="center">
-	<img src="docs/screenshots/civilian-map.png" alt="Surviv civilian map view" width="360" />
-	<img src="docs/screenshots/admin-hazard-mapping.png" alt="Surviv admin hazard mapping view" width="360" />
+  <img src="civilian-map.png" alt="Civilian map" width="24%" /><img src="admin-map.png" alt="Admin map" width="24%" /><img src="live-alert.png" alt="Live alerts" width="24%" /><img src="threat-history.png" alt="Threat history" width="24%" />
 </p>
 
-## Why This Matters
+## Problem
 
-In high-risk environments, people do not fail because they lack courage. They fail because they lack trusted information at the right moment.
+During outages and infrastructure disruption, people lose trusted, timely information first. Without that signal, communities cannot quickly verify threats or coordinate safe decisions.
 
-Surviv focuses on three hard constraints:
+## Solution
 
-- No network dependency: communication should not require towers or internet.
-- Low-latency local coordination: nearby people need shared situational awareness now, not later.
-- Privacy by design: identity and location sharing should be intentional and minimal.
+Surviv delivers three core capabilities on-device:
 
-## What Surviv Does
+- Mesh alerts: multi-hop peer-to-peer broadcast with no internet dependency.
+- Shared hazard map: danger and safe-route pins synchronized across nearby peers.
+- On-device AI detection: microphone classification that can auto-create danger alerts.
 
-1. Peer-to-peer emergency messaging
-- Admin users can broadcast high-priority alerts.
-- Messages relay across nearby devices with hop tracking and deduplication.
+## Why It Wins
 
-2. Live hazard mapping
-- Users and admins can create danger and safe-route pins.
-- Hazard pins synchronize across the mesh and appear on all connected devices.
-- Threat history stores who reported, what type of threat, and when.
+- Works offline by default.
+- Designed for fast decisions under stress.
+- Converts raw events into map-level guidance.
+- Uses commodity phones with no extra hardware.
 
-3. AI-assisted threat detection on device
-- The app runs a Core ML audio model locally.
-- It listens in short bursts, classifies likely threats, and can auto-drop danger pins.
-- No cloud inference required.
+## Inspiration
 
-4. Offline-first coordination
-- If peers are temporarily unavailable, payloads are queued and flushed when links return.
-- The app continues to provide local map awareness and historical context.
+Recent local and global conflicts highlighted a simple need: civilians need a direct way to warn each other when centralized systems are slow, unavailable, or compromised. Surviv was built to support community-to-community protection using the devices people already carry.
 
-## System Design (High Level)
+## How It Works
 
-Surviv combines four layers:
+- Networking: Multipeer mesh relay with dedup and hop limits.
+- Mapping: shared hazard model with timestamped history.
+- AI: PyTorch training pipeline exported to Core ML for on-device inference.
+- Persistence: SwiftData for continuity when links drop.
 
-- Interface layer (SwiftUI): civilian and admin views, map overlays, alert feed, threat history.
-- Coordination layer: app lifecycle, location updates, detector events, pin creation/broadcast flow.
-- Mesh transport layer: Multipeer Connectivity session management, relay logic, dedup, pending queues.
-- AI layer: PyTorch training pipeline -> Core ML package -> on-device inference.
+## Challenges and Tradeoffs
 
-This structure keeps the product resilient: if one path fails (for example, mesh link drops), local functions still remain available.
+- Hardest problem: separating normal city audio from true danger classes such as gunfire and shelling.
+- Current model performance: around 81% accuracy and 85% recall.
+- We bias toward over-warning: false positives are more acceptable than missed threats in high-risk settings.
 
-## Core Technical Features
+## What We Are Proud Of
 
-- Multipeer networking with multi-hop relay
-- Packet and hazard deduplication for mesh stability
-- Role-aware behavior (civilian/admin)
-- SwiftData persistence for hazard and audio records
-- On-device microphone inference with configurable confidence threshold
-- Hazard metadata model (source, threat label, reason, timestamp, radius)
+- Built a clear interface without sacrificing speed.
+- Shipped an end-to-end iOS + mesh + AI pipeline as a student team.
+- Focused the product on practical civilian coordination, not demo-only features.
 
-## Repository Structure
+## What We Learned
 
-```text
-surviv/
-	README.md
-	requirements.txt
-	surviv_logo.png
-	ai-engine/
-		train_mad.py
-		test_mad.py
-		live_mic_mad.py
-		export_mad_coreml.py
-		mad/
-		mad_runs/default/
-	ios-app/
-		surviv.xcodeproj
-		surviv/
-			Services/
-			P2P/
-			Models/
-			Packages/MADMelCNN.mlpackage
-```
+- Swift and SwiftUI application engineering at production depth.
+- Low-latency peer relay design using Apple networking primitives.
+- Reliable on-device ML deployment from PyTorch to Core ML.
 
 ## Tech Stack
 
-- iOS app: SwiftUI, SwiftData, CoreLocation, AVFoundation, MultipeerConnectivity, Core ML
-- AI engine: Python, PyTorch, torchaudio, NumPy
-- Model target: Core ML package for on-device iPhone inference
+- iOS: SwiftUI, MapKit, SwiftData, CoreLocation, AVFoundation, MultipeerConnectivity, Core ML
+- AI: Python, PyTorch, torchaudio, NumPy
 
 ## Quick Start
 
-### A) Run the iOS app
+### Run iOS App
 
 1. Open ios-app/surviv.xcodeproj in Xcode.
-2. Select a simulator or iPhone.
-3. Build and run.
-4. Grant location and microphone permissions.
+2. Build and run on simulator or device.
+3. Grant microphone and location permissions.
 
-Default behavior:
-
-- App starts in civilian mode.
-- Admin mode enables broadcast and hazard-management controls.
-- Mesh messages and hazard pins relay between nearby peers.
-
-### B) Run the AI pipeline
-
-From repository root:
+### Run AI Pipeline
 
 ```bash
 python3 -m venv .venv
 source .venv/bin/activate
+
 pip install --upgrade pip
+
 pip install -r requirements.txt
-```
 
-Install a PyTorch build that matches your system from https://pytorch.org/.
-
-Train:
-
-```bash
 cd ai-engine
+
 python train_mad.py --data-root MAD_dataset --epochs 30 --out-dir mad_runs/default
-```
 
-Evaluate:
-
-```bash
 python test_mad.py --checkpoint mad_runs/default/best.pt --data-root MAD_dataset
-```
 
-Live microphone inference:
-
-```bash
 python live_mic_mad.py --checkpoint mad_runs/default/best.pt
 ```
 
-Export to Core ML package:
+Optional Core ML export:
 
 ```bash
 pip install coremltools
+
 python export_mad_coreml.py --checkpoint mad_runs/default/best.pt --out MADMelCNN.mlpackage
 ```
 
-High-impact next features:
+## What Is Next
 
-- Delivery acknowledgements for critical alerts
-- Trust scoring and report confidence model for conflicting field reports
+- Expand map support from a single local region to city-scale partitioned areas.
+- Delivery confirmation for critical alerts.
+- Report credibility scoring across multiple peer confirmations.
+- End-to-end encrypted payload exchange.
