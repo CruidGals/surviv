@@ -426,9 +426,16 @@ enum ProjectTheme {
 
 private struct CivilianSettingsSheet: View {
     @AppStorage("isAdmin") private var isAdmin = false
+    @AppStorage("profile.displayName") private var profileDisplayName = ""
     @Environment(\.dismiss) private var dismiss
     @State private var showPasscodeEntry = false
+    @State private var showProfileEditor = false
     @State private var passcodeInput = ""
+
+    private var currentDisplayName: String {
+        let trimmed = profileDisplayName.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? "Not set" : trimmed
+    }
 
     var body: some View {
         NavigationStack {
@@ -436,6 +443,34 @@ private struct CivilianSettingsSheet: View {
                 Text("Settings")
                     .font(.system(size: 28, weight: .black, design: .rounded))
                     .foregroundStyle(ProjectTheme.textPrimary)
+
+                VStack(alignment: .leading, spacing: 10) {
+                    Text("Profile")
+                        .font(.system(size: 12, weight: .heavy, design: .rounded))
+                        .foregroundStyle(ProjectTheme.textSecondary)
+
+                    HStack {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(currentDisplayName)
+                                .font(.system(size: 18, weight: .heavy, design: .rounded))
+                                .foregroundStyle(ProjectTheme.textPrimary)
+                            Text("Used for mesh broadcasts and alerts")
+                                .font(.system(size: 12, weight: .medium, design: .rounded))
+                                .foregroundStyle(ProjectTheme.textSecondary)
+                        }
+                        Spacer()
+                        Button("Edit") {
+                            showProfileEditor = true
+                        }
+                        .buttonStyle(.borderedProminent)
+                    }
+                    .padding(14)
+                    .background(ProjectTheme.panel, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 14, style: .continuous)
+                            .stroke(ProjectTheme.panelBorder, lineWidth: 1)
+                    )
+                }
 
                 Toggle("Crisis mode (UI emphasis)", isOn: .constant(false))
                     .disabled(true)
@@ -492,6 +527,15 @@ private struct CivilianSettingsSheet: View {
                         }
                     }
                 }
+            }
+            .sheet(isPresented: $showProfileEditor) {
+                ProfileNameSheet(
+                    storedName: $profileDisplayName,
+                    title: "Update profile",
+                    subtitle: "Choose a clear name so teammates can identify your transmissions."
+                )
+                .presentationDetents([.medium])
+                .presentationCornerRadius(22)
             }
         }
     }

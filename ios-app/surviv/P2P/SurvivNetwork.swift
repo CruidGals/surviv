@@ -3,6 +3,7 @@ import Combine
 
 class SurvivNetworker: NSObject, ObservableObject {
     private let serviceType = "surviv"
+    private let profileDisplayNameKey = "profile.displayName"
     private let myPeerID = MCPeerID(displayName: UIDevice.current.name)
 
     private var session: MCSession!
@@ -59,7 +60,7 @@ class SurvivNetworker: NSObject, ObservableObject {
             return
         }
 
-        let packet = SurvivPacket(senderName: myPeerID.displayName, role: .admin, message: message)
+        let packet = SurvivPacket(senderName: resolvedSenderName(), role: .admin, message: message)
         if let data = packet.encode() {
             do {
                 try session.send(data, toPeers: session.connectedPeers, with: .reliable)
@@ -101,6 +102,12 @@ class SurvivNetworker: NSObject, ObservableObject {
     func send(packet: SurvivPacket, toPeers peers: [MCPeerID]) {
         guard !peers.isEmpty, let data = packet.encode() else { return }
         try? session.send(data, toPeers: peers, with: .reliable)
+    }
+
+    private func resolvedSenderName() -> String {
+        let stored = UserDefaults.standard.string(forKey: profileDisplayNameKey) ?? ""
+        let trimmed = stored.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? myPeerID.displayName : trimmed
     }
 }
 
