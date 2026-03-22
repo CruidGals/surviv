@@ -196,22 +196,39 @@ final class ThreatDetector {
         return resampleToModel(raw, sourceRate: hwFormat.sampleRate)
     }
 
-    /// Naive linear resample from hardware rate to model's expected rate.
+    /// Resample captured audio to the model's expected rate using AVAudioConverter
+    /// (applies proper anti-aliasing, unlike naive nearest-neighbor decimation).
     private func resampleToModel(_ samples: [Float], sourceRate: Double) -> [Float] {
         let targetRate = ringSampleRate
         guard !samples.isEmpty else { return [] }
         if abs(sourceRate - targetRate) < 1 { return samples }
 
-        let ratio = targetRate / sourceRate
-        let outCount = Int(Double(samples.count) * ratio)
-        var out = [Float]()
-        out.reserveCapacity(outCount)
-        var idx: Double = 0
-        while Int(idx) < samples.count {
-            out.append(samples[Int(idx)])
-            idx += 1 / max(ratio, 0.0001)
+        guard let srcFormat = AVAudioFormat(standardFormatWithSampleRate: sourceRate, channels: 1),
+              let dstFormat = AVAudioFormat(standardFormatWithSampleRate: targetRate, channels: 1),
+              let converter = AVAudioConverter(from: srcFormat, to: dstFormat) else {
+            return samples
         }
-        return out
+
+        let frameCount = AVAudioFrameCount(samples.count)
+        guard let srcBuffer = AVAudioPCMBuffer(pcmFormat: srcFormat, frameCapacity: frameCount) else { return samples }
+        srcBuffer.frameLength = frameCount
+        memcpy(srcBuffer.floatChannelData![0], samples, samples.count * MemoryLayout<Float>.size)
+
+        let outFrameCount = AVAudioFrameCount(Double(samples.count) * targetRate / sourceRate) + 16
+        guard let dstBuffer = AVAudioPCMBuffer(pcmFormat: dstFormat, frameCapacity: outFrameCount) else { return samples }
+
+        var consumed = false
+        var error: NSError?
+        converter.convert(to: dstBuffer, error: &error) { _, outStatus in
+            if consumed { outStatus.pointee = .endOfStream; return nil }
+            consumed = true
+            outStatus.pointee = .haveData
+            return srcBuffer
+        }
+        guard error == nil else { return samples }
+
+        let n = Int(dstBuffer.frameLength)
+        return Array(UnsafeBufferPointer(start: dstBuffer.floatChannelData![0], count: n))
     }
 
     // MARK: - Inference
@@ -238,32 +255,47 @@ final class ThreatDetector {
         guard let provider = try? MLDictionaryFeatureProvider(dictionary: [waveformInputName: input]),
               let out = try? model.prediction(from: provider) else { return nil }
 
-        return Self.aggregateThreatConfidence(from: out, threatLabels: ThreatClassLabels.set)
+        return Self.aggregateThreatConfidence(
+            from: out,
+            relevantLabels: ThreatClassLabels.relevant,
+            threatLabels: ThreatClassLabels.threats
+        )
     }
 
-    /// Sum probabilities of all threat classes from model output.
+    /// Renormalize model probabilities over only the relevant classes, then sum
+    /// the threat subset.  This lets us reuse the 7-class model while focusing
+    /// on Communication / Shooting / Shelling.
     private static func aggregateThreatConfidence(
         from output: MLFeatureProvider,
+        relevantLabels: Set<String>,
         threatLabels: Set<String>
     ) -> (Double, String)? {
-        if let probs = output.featureValue(for: "classLabelProbs")?.dictionaryValue {
-            var combined: Double = 0
-            var topLabel: String?
-            var topScore: Double = 0
-            for (k, v) in probs {
-                let label = (k as? String) ?? String(describing: k)
-                let score = (v as? NSNumber)?.doubleValue ?? (v as? Double) ?? 0
-                guard threatLabels.contains(label) else { continue }
-                combined += score
-                if score > topScore { topScore = score; topLabel = label }
+        guard let probs = output.featureValue(for: "classLabelProbs")?.dictionaryValue else {
+            if let label = output.featureValue(for: "classLabel")?.stringValue,
+               threatLabels.contains(label) {
+                return (1.0, label)
             }
-            guard let best = topLabel else { return nil }
-            return (combined, best)
+            return nil
         }
-        if let label = output.featureValue(for: "classLabel")?.stringValue, threatLabels.contains(label) {
-            return (1.0, label)
+
+        var relevantSum: Double = 0
+        var threatScores: [(String, Double)] = []
+
+        for (k, v) in probs {
+            let label = (k as? String) ?? String(describing: k)
+            let score = (v as? NSNumber)?.doubleValue ?? (v as? Double) ?? 0
+            guard relevantLabels.contains(label) else { continue }
+            relevantSum += score
+            if threatLabels.contains(label) {
+                threatScores.append((label, score))
+            }
         }
-        return nil
+
+        guard relevantSum > 1e-9, !threatScores.isEmpty else { return nil }
+
+        let normalizedThreat = threatScores.reduce(0.0) { $0 + $1.1 } / relevantSum
+        let best = threatScores.max(by: { $0.1 < $1.1 })!
+        return (normalizedThreat, best.0)
     }
 
     // MARK: - Emission

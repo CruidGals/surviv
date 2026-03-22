@@ -7,3 +7,5 @@ tqdm>=4.65.0
 soundfile>=0.12.0
 # Live microphone inference (ai-engine/live_mic_mad.py)
 sounddevice>=0.4.6
+# Core ML export (ai-engine/export_mad_coreml.py)
+coremltools>=7.0

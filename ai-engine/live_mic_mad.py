@@ -189,10 +189,19 @@ def main() -> None:
                 w = ring_to_waveform(ring, target_samples)
                 _, probs = predict(model, mel, w, torch_device)
 
-                topk = 3
                 p_np = probs.numpy()
-                idx = np.argsort(-p_np)[:topk]
-                parts = [f"{names[i]} {100.0 * float(p_np[i]):.1f}%" for i in idx]
+
+                # Renormalize over the 3 classes we care about
+                focus_idx = [0, 1, 3]  # Communication, Shooting, Shelling
+                focus_probs = np.array([p_np[i] for i in focus_idx])
+                focus_sum = focus_probs.sum()
+                if focus_sum > 1e-9:
+                    focus_probs = focus_probs / focus_sum
+                focus_names = [names[i] for i in focus_idx]
+
+                parts = [f"{focus_names[j]} {100.0 * float(focus_probs[j]):.1f}%" for j in range(len(focus_idx))]
+                threat = focus_probs[1] + focus_probs[2]  # Shooting + Shelling
+                parts.append(f"THREAT {100.0 * float(threat):.0f}%")
                 line = "  |  ".join(parts)
                 sys.stdout.write(f"\r{line}                    ")
                 sys.stdout.flush()
