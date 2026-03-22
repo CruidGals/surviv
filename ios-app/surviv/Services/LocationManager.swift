@@ -7,7 +7,7 @@ final class LocationManager: NSObject, CLLocationManagerDelegate {
 
     /// Dev-only: set `useOverrideLocation` to `true` to pin the simulator to this coordinate (UVA). **Ship with `false`.**
     static let overrideLocation = CLLocation(latitude: 38.0438, longitude: -78.5095)
-    private let useOverrideLocation = false
+    private let useOverrideLocation = true
 
     var currentLocation: CLLocation?
     var authorizationStatus: CLAuthorizationStatus = .notDetermined
