@@ -110,10 +110,7 @@ struct ContentView: View {
             set: { if !$0 { selectedHazardPinDetailId = nil } }
         )) {
             if let id = selectedHazardPinDetailId, let pin = pins.first(where: { $0.id == id }) {
-                HazardPinDetailSheet(snapshot: HazardPinDetailSnapshot(pin: pin)) {
-                    coordinator.deleteHazardPinAndBroadcast(id: id)
-                    selectedHazardPinDetailId = nil
-                }
+                HazardPinDetailSheet(snapshot: HazardPinDetailSnapshot(pin: pin), onDelete: nil)
             }
         }
     }

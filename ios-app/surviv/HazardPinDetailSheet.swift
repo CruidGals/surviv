@@ -20,8 +20,8 @@ struct HazardPinDetailSnapshot: Sendable {
 /// Medium/large detent sheet showing who placed a hazard pin and why (matches settings/broadcast presentation).
 struct HazardPinDetailSheet: View {
     let snapshot: HazardPinDetailSnapshot
-    /// Removes the pin on this device and broadcasts to the mesh (by id; safe while this view is visible).
-    let onDelete: () -> Void
+    /// When non-`nil`, shows delete UI; removes the pin locally and broadcasts to the mesh.
+    let onDelete: (() -> Void)?
     @Environment(\.dismiss) private var dismiss
     @State private var confirmDelete = false
 
@@ -44,9 +44,9 @@ struct HazardPinDetailSheet: View {
         return s.isEmpty ? "Unknown" : s
     }
 
-    var body: some View {
-        NavigationStack {
-            ScrollView {
+    @ViewBuilder
+    private var detailScrollContent: some View {
+        ScrollView {
                 VStack(alignment: .leading, spacing: 18) {
                     HStack(spacing: 10) {
                         Image(systemName: snapshot.pinType == .danger ? "exclamationmark.triangle.fill" : "figure.walk.diamond.fill")
@@ -111,42 +111,59 @@ struct HazardPinDetailSheet: View {
                 }
                 .padding(20)
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .background(Color(red: 0.05, green: 0.07, blue: 0.09).ignoresSafeArea())
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Done") { dismiss() }
-                }
-                ToolbarItem(placement: .primaryAction) {
-                    Menu {
-                        Button(role: .destructive) {
-                            confirmDelete = true
-                        } label: {
-                            Label("Delete zone", systemImage: "trash")
+    }
+
+    var body: some View {
+        Group {
+            if let onDelete {
+                navigationChrome
+                    .confirmationDialog(
+                        "Delete this zone?",
+                        isPresented: $confirmDelete,
+                        titleVisibility: .visible
+                    ) {
+                        Button("Delete", role: .destructive) {
+                            onDelete()
+                            dismiss()
                         }
-                    } label: {
-                        Image(systemName: "ellipsis.circle")
-                            .font(.system(size: 17, weight: .semibold))
-                            .foregroundStyle(ProjectTheme.textPrimary)
+                        Button("Cancel", role: .cancel) {}
+                    } message: {
+                        Text("This removes it on all connected devices.")
                     }
-                }
-            }
-            .confirmationDialog(
-                "Delete this zone?",
-                isPresented: $confirmDelete,
-                titleVisibility: .visible
-            ) {
-                Button("Delete", role: .destructive) {
-                    onDelete()
-                    dismiss()
-                }
-                Button("Cancel", role: .cancel) {}
-            } message: {
-                Text("This removes it on all connected devices.")
+            } else {
+                navigationChrome
             }
         }
         .presentationDetents([.medium, .large])
         .presentationCornerRadius(22)
+    }
+
+    private var navigationChrome: some View {
+        NavigationStack {
+            detailScrollContent
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .background(Color(red: 0.05, green: 0.07, blue: 0.09).ignoresSafeArea())
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar {
+                    ToolbarItem(placement: .cancellationAction) {
+                        Button("Done") { dismiss() }
+                    }
+                    if onDelete != nil {
+                        ToolbarItem(placement: .primaryAction) {
+                            Menu {
+                                Button(role: .destructive) {
+                                    confirmDelete = true
+                                } label: {
+                                    Label("Delete zone", systemImage: "trash")
+                                }
+                            } label: {
+                                Image(systemName: "ellipsis.circle")
+                                    .font(.system(size: 17, weight: .semibold))
+                                    .foregroundStyle(ProjectTheme.textPrimary)
+                            }
+                        }
+                    }
+                }
+        }
     }
 }
