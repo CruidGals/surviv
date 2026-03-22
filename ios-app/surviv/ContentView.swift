@@ -12,6 +12,7 @@ import Network
 import CoreLocation
 
 struct ContentView: View {
+    @AppStorage("isAdmin") private var isAdmin = false
     @Environment(\.modelContext) private var modelContext
     @EnvironmentObject private var coordinator: Coordinator
     @EnvironmentObject private var networker: SurvivNetworker
@@ -99,6 +100,11 @@ struct ContentView: View {
         .onChange(of: coordinator.locationRevision) { _, _ in
             if let c = coordinator.locationManager.lastKnownMapCoordinate() {
                 model.centerOnUserIfNeeded(c)
+            }
+        }
+        .onChange(of: isAdmin) { _, newValue in
+            if newValue {
+                showSettings = false
             }
         }
         .sheet(isPresented: $showSettings) {
@@ -431,6 +437,9 @@ private struct CivilianSettingsSheet: View {
     @State private var showPasscodeEntry = false
     @State private var showProfileEditor = false
     @State private var passcodeInput = ""
+    @State private var unlockErrorText: String?
+    @State private var versionTapCount = 0
+    @State private var lastVersionTapAt = Date.distantPast
 
     private var currentDisplayName: String {
         let trimmed = profileDisplayName.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -476,16 +485,32 @@ private struct CivilianSettingsSheet: View {
                     .disabled(true)
                     .tint(ProjectTheme.warning)
 
-                Spacer()
+                VStack(alignment: .leading, spacing: 10) {
+                    Text("About")
+                        .font(.system(size: 12, weight: .heavy, design: .rounded))
+                        .foregroundStyle(ProjectTheme.textSecondary)
 
-                Text("Version 1.0.0")
-                    .font(.system(size: 13, weight: .semibold, design: .rounded))
-                    .foregroundStyle(ProjectTheme.textSecondary)
-                    .frame(maxWidth: .infinity, alignment: .center)
-                    .onTapGesture(count: 5) {
-                        passcodeInput = ""
-                        showPasscodeEntry = true
+                    HStack {
+                        Image(systemName: "info.circle")
+                            .foregroundStyle(ProjectTheme.textSecondary)
+                        Text("Version 1.0.0")
+                            .font(.system(size: 14, weight: .semibold, design: .rounded))
+                            .foregroundStyle(ProjectTheme.textPrimary)
+                        Spacer()
                     }
+                    .padding(12)
+                    .background(ProjectTheme.panel, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 12, style: .continuous)
+                            .stroke(ProjectTheme.panelBorder, lineWidth: 1)
+                    )
+                    .contentShape(Rectangle())
+                    .onTapGesture {
+                        handleVersionTap()
+                    }
+                }
+
+                Spacer()
             }
             .padding(20)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -506,13 +531,24 @@ private struct CivilianSettingsSheet: View {
                             .foregroundStyle(.secondary)
                         SecureField("Passcode", text: $passcodeInput)
                             .textContentType(.password)
+                            .keyboardType(.numberPad)
                             .padding(12)
                             .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 10))
+                        if let unlockErrorText {
+                            Text(unlockErrorText)
+                                .font(.system(size: 12, weight: .semibold, design: .rounded))
+                                .foregroundStyle(.red)
+                        }
                         Button("Unlock") {
-                            if passcodeInput == "1111" {
+                            let normalized = passcodeInput.trimmingCharacters(in: .whitespacesAndNewlines)
+                            if normalized == "1111" {
+                                unlockErrorText = nil
                                 isAdmin = true
                                 showPasscodeEntry = false
                                 dismiss()
+                            } else {
+                                unlockErrorText = "Incorrect passcode"
+                                Haptics.impact(.rigid)
                             }
                         }
                         .buttonStyle(.borderedProminent)
@@ -528,6 +564,11 @@ private struct CivilianSettingsSheet: View {
                     }
                 }
             }
+            .onChange(of: showPasscodeEntry) { _, isShown in
+                if isShown {
+                    unlockErrorText = nil
+                }
+            }
             .sheet(isPresented: $showProfileEditor) {
                 ProfileNameSheet(
                     storedName: $profileDisplayName,
@@ -537,6 +578,25 @@ private struct CivilianSettingsSheet: View {
                 .presentationDetents([.medium])
                 .presentationCornerRadius(22)
             }
+        }
+    }
+
+    private func handleVersionTap() {
+        let now = Date()
+        // Allow a human-speed hidden gesture while avoiding accidental long-gap accumulation.
+        if now.timeIntervalSince(lastVersionTapAt) > 1.8 {
+            versionTapCount = 0
+        }
+
+        versionTapCount += 1
+        lastVersionTapAt = now
+        Haptics.impact(.light)
+
+        if versionTapCount >= 5 {
+            versionTapCount = 0
+            passcodeInput = ""
+            unlockErrorText = nil
+            showPasscodeEntry = true
         }
     }
 }
@@ -1052,9 +1112,14 @@ private extension MKCoordinateRegion {
 }
 
 #Preview {
-    let container = try! ModelContainer(for: HazardPin.self, AudioRecording.self)
+    let previewConfig = ModelConfiguration(isStoredInMemoryOnly: true)
+    let container = try! ModelContainer(
+        for: HazardPin.self,
+        AudioRecording.self,
+        configurations: previewConfig
+    )
     let networker = SurvivNetworker()
-    ContentView()
+    RootSurvivView()
         .environmentObject(Coordinator(modelContainer: container, networker: networker))
         .environmentObject(networker)
         .modelContainer(container)
