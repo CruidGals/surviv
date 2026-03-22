@@ -1,18 +1,6 @@
-### routing 
+### routing
 
-The whole idea is turning your map into a grid of costs, then finding the cheapest path through it.
+Implemented in `Services/SafeRouteEngine.swift`. Uses on-device A* over an
+OSM road graph with danger-zone cost inflation — no server required.
 
-Step 1: The cost grid. Imagine laying an invisible checkerboard over your map area. Every square starts with a cost of 1 — meaning it's safe to walk through. Now for every red danger pin, you look at all the squares within its danger radius and jack up their cost. The closer a square is to the red pin, the more expensive it gets. A square right on top of a danger pin might cost 1000, while a square at the edge of its radius might cost 50. Squares outside any danger radius stay at 1.
-Step 2: Pathfinding. Now you have a start point (the user's GPS location) and an end point (the nearest green safe pin). You run A* search, which is basically the algorithm asking "what's the cheapest way to walk from here to there, one grid square at a time?" It explores outward from your location, always expanding the cheapest option first. Because the squares near red pins are so expensive, A* naturally curves around them — it's mathematically cheaper to take a longer path that avoids danger than a short one that walks through it.
-Step 3: Dynamic recalculation. Every time a new red pin drops (from the mesh, from the AI, from a user), you rebuild the cost grid with the new danger zone added, then re-run A* from the user's current position. The route updates and the user sees a new path. Same thing as the user walks — their start point changes, so you recalculate periodically.
-That's the entire theory. Cost grid + A* + recalculate on change.
-
-
-#### OSRM 
-
-OSRM (Open Source Routing Machine) is basically a self-hosted Google Maps routing engine. It takes raw OpenStreetMap road data and builds a routing graph that you can query for directions between any two points — completely offline.
-How you'd set it up: Before the hackathon, you download the OSM data for just your demo area. OpenStreetMap lets you export specific regions, so you'd grab a small chunk — maybe just your university campus or the surrounding few blocks. This is a .osm.pbf file, usually just a few megabytes for a small area. Then you feed it into OSRM's preprocessing tool, which crunches the raw map data into an optimized routing graph. This step runs once on a laptop and takes maybe a minute for a small area.
-How you'd query it: Your Python teammate spins up the OSRM server locally on their laptop. It exposes a simple HTTP API. You hit it with something like http://localhost:5000/route/v1/walking/-78.51,38.03;-78.50,38.03 — that's just start coordinates and end coordinates — and it returns a full road-following walking route as a list of GPS coordinates. It knows about sidewalks, one-way streets, pedestrian paths, all of it.
-How you'd integrate the danger avoidance: This is the interesting part. OSRM by itself doesn't know about your danger pins. So instead of asking it for one route, you'd ask it for routes to every safe pin, then score each route against your danger pins. For each candidate route, you walk along its GPS coordinates and check how close it passes to any red pin. You calculate a danger score — something like the sum of inverse distances to all red pins along the route. Then you pick the route with the lowest danger score.
-The limitation: Unlike the pure A* grid approach where the path actively bends around danger, OSRM gives you fixed road routes and you're just picking the least dangerous one from whatever roads exist. If there are only two roads to the safe zone and both pass through a danger area, you can't invent a third path. You're limited to real roads, which is more realistic but less flexible.
-Why it's probably overkill for your hackathon: The OSRM server runs on the Python dev's laptop, not on the iPhone. So your phones would need to reach that laptop somehow — either over local Wi-Fi (which breaks your "no infrastructure" story) or you'd need to bundle the entire routing engine on-device (which is a massive engineering lift). The grid-based A* approach runs entirely on the phone with zero external dependencies, which fits your offline-first thesis way better.
+OSM data lives in `Resources/mapUva.osm` (UVA campus area).
