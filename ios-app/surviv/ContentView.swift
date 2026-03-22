@@ -135,6 +135,7 @@ struct ContentView: View {
 
             if let status = model.downloadStatusMessage {
                 StatusCard(title: "Offline Download", subtitle: status)
+                    .onTapGesture { model.dismissDownloadStatus() }
             }
         }
         .padding(.bottom, 10)
@@ -675,6 +676,10 @@ final class MapViewModel: ObservableObject {
         if let area = OfflineMapCacheManager.shared.latestOfflineArea {
             downloadStatusMessage = "Area cached on \(area.createdAt.formatted(date: .abbreviated, time: .shortened))."
         }
+    }
+
+    func dismissDownloadStatus() {
+        downloadStatusMessage = nil
     }
 
     func downloadCurrentArea() {
