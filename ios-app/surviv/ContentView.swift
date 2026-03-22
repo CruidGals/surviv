@@ -1009,7 +1009,10 @@ struct HazardMapView: UIViewRepresentable {
     }
 
     func updateUIView(_ mapView: MKMapView, context: Context) {
-        if !mapView.region.isClose(to: region) {
+        // While the user is panning/zooming, SwiftUI can refresh before `regionDidChange`
+        // updates the binding; applying the stale binding here snaps the map back to the old center.
+        if !context.coordinator.isMapRegionChanging,
+           !mapView.region.isClose(to: region) {
             mapView.setRegion(region, animated: false)
         }
 
@@ -1041,6 +1044,8 @@ struct HazardMapView: UIViewRepresentable {
     final class Coordinator: NSObject, MKMapViewDelegate {
         var parent: HazardMapView
         var lastRenderKey = ""
+        /// True between `regionWillChange` and `regionDidChange` (user or programmatic); avoids clobbering the visible map during interactive moves.
+        var isMapRegionChanging = false
 
         init(_ parent: HazardMapView) {
             self.parent = parent
@@ -1064,8 +1069,13 @@ struct HazardMapView: UIViewRepresentable {
             parent.onDropPin(coordinate)
         }
 
+        func mapView(_ mapView: MKMapView, regionWillChangeAnimated animated: Bool) {
+            isMapRegionChanging = true
+        }
+
         func mapView(_ mapView: MKMapView, regionDidChangeAnimated animated: Bool) {
             parent.region = mapView.region
+            isMapRegionChanging = false
         }
 
         func mapView(_ mapView: MKMapView, rendererFor overlay: MKOverlay) -> MKOverlayRenderer {
