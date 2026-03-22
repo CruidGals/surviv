@@ -18,6 +18,7 @@ struct ContentView: View {
     @Query(sort: \HazardPin.timestamp, order: .reverse) private var pins: [HazardPin]
     @StateObject private var model = MapViewModel()
     @State private var showSettings = false
+    @State private var showBroadcastMessages = false
     @State private var leftToolbarExpanded: LeftToolbarExpandedItem? = nil
     @State private var bottomHazardExpanded = false
 
@@ -84,6 +85,10 @@ struct ContentView: View {
                 onSettings: {
                     leftToolbarExpanded = nil
                     showSettings = true
+                },
+                onBroadcastMessages: {
+                    leftToolbarExpanded = nil
+                    showBroadcastMessages = true
                 }
             )
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
@@ -104,6 +109,11 @@ struct ContentView: View {
         .sheet(isPresented: $showSettings) {
             CivilianSettingsSheet()
                 .presentationDetents([.medium])
+                .presentationCornerRadius(22)
+        }
+        .sheet(isPresented: $showBroadcastMessages) {
+            BroadcastMessagesSheet()
+                .presentationDetents([.medium, .large])
                 .presentationCornerRadius(22)
         }
     }
@@ -154,10 +164,38 @@ private struct LeftToolbarChrome: View {
     let hasOfflineArea: Bool
     let meshPeerCount: Int
     let onSettings: () -> Void
+    let onBroadcastMessages: () -> Void
 
     var body: some View {
         HStack(alignment: .top, spacing: 10) {
-            VStack(spacing: 12) {
+            VStack(spacing: 10) {
+                Button(action: onSettings) {
+                    Image(systemName: "gearshape.fill")
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundStyle(ProjectTheme.textPrimary)
+                        .frame(width: 40, height: 40)
+                        .background(leftToolbarIconCircleFill(selectedAccent: nil), in: Circle())
+                        .overlay(
+                            Circle()
+                                .stroke(Color.white.opacity(0.22), lineWidth: 1)
+                        )
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Settings")
+
+                Button(action: onBroadcastMessages) {
+                    Image(systemName: "bubble.left.and.bubble.right.fill")
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundStyle(ProjectTheme.textPrimary)
+                        .frame(width: 40, height: 40)
+                        .background(leftToolbarIconCircleFill(selectedAccent: nil), in: Circle())
+                        .overlay(
+                            Circle()
+                                .stroke(Color.white.opacity(0.22), lineWidth: 1)
+                        )
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Broadcast messages")
                 toolbarIconButton(
                     item: .internet,
                     systemImage: isOnline ? "wifi" : "wifi.slash",
@@ -173,19 +211,6 @@ private struct LeftToolbarChrome: View {
                     systemImage: hasOfflineArea ? "internaldrive.fill" : "internaldrive",
                     accent: hasOfflineArea ? ProjectTheme.signal : ProjectTheme.caution
                 )
-                Button(action: onSettings) {
-                    Image(systemName: "gearshape.fill")
-                        .font(.system(size: 16, weight: .semibold))
-                        .foregroundStyle(ProjectTheme.textPrimary)
-                        .frame(width: 40, height: 40)
-                        .background(leftToolbarIconCircleFill(selectedAccent: nil), in: Circle())
-                        .overlay(
-                            Circle()
-                                .stroke(Color.white.opacity(0.22), lineWidth: 1)
-                        )
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel("Settings")
             }
             .frame(maxHeight: .infinity, alignment: .top)
             .padding(.vertical, 12)
@@ -500,6 +525,87 @@ private struct CivilianSettingsSheet: View {
                 }
             }
         }
+    }
+}
+
+private struct BroadcastMessagesSheet: View {
+    @EnvironmentObject private var networker: SurvivNetworker
+    @Environment(\.dismiss) private var dismiss
+
+    private var orderedPackets: [SurvivPacket] {
+        networker.incomingMessages.reversed()
+    }
+
+    var body: some View {
+        NavigationStack {
+            VStack(alignment: .leading, spacing: 20) {
+                Text("Broadcasts")
+                    .font(.system(size: 28, weight: .black, design: .rounded))
+                    .foregroundStyle(ProjectTheme.textPrimary)
+
+                if orderedPackets.isEmpty {
+                    Text("No broadcast messages yet. Admin alerts from the mesh will appear here.")
+                        .font(.system(size: 15, weight: .medium, design: .rounded))
+                        .foregroundStyle(ProjectTheme.textSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                    Spacer(minLength: 0)
+                } else {
+                    ScrollView {
+                        LazyVStack(alignment: .leading, spacing: 12) {
+                            ForEach(orderedPackets, id: \.id) { packet in
+                                broadcastMessageRow(packet)
+                            }
+                        }
+                        .padding(.bottom, 8)
+                    }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                }
+
+                Text("Mesh relay · newest first")
+                    .font(.system(size: 13, weight: .semibold, design: .rounded))
+                    .foregroundStyle(ProjectTheme.textSecondary)
+                    .frame(maxWidth: .infinity, alignment: .center)
+            }
+            .padding(20)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(Color(red: 0.05, green: 0.07, blue: 0.09).ignoresSafeArea())
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Done") { dismiss() }
+                }
+            }
+        }
+    }
+
+    private func broadcastMessageRow(_ packet: SurvivPacket) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack {
+                Text(packet.senderName)
+                    .font(.system(size: 13, weight: .bold, design: .rounded))
+                    .foregroundStyle(ProjectTheme.textPrimary)
+                Spacer(minLength: 8)
+                Text(packet.timestamp, style: .time)
+                    .font(.system(size: 11, weight: .semibold, design: .monospaced))
+                    .foregroundStyle(ProjectTheme.textSecondary)
+            }
+            Text(packet.message)
+                .font(.system(size: 15, weight: .medium, design: .rounded))
+                .foregroundStyle(ProjectTheme.textSecondary)
+                .fixedSize(horizontal: false, vertical: true)
+            if packet.hopCount > 0 {
+                Text("Hops: \(packet.hopCount)")
+                    .font(.system(size: 10, weight: .bold, design: .monospaced))
+                    .foregroundStyle(ProjectTheme.textSecondary.opacity(0.85))
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(14)
+        .background(ProjectTheme.panel, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .stroke(ProjectTheme.panelBorder, lineWidth: 1)
+        )
     }
 }
 
@@ -903,7 +1009,10 @@ struct HazardMapView: UIViewRepresentable {
     }
 
     func updateUIView(_ mapView: MKMapView, context: Context) {
-        if !mapView.region.isClose(to: region) {
+        // While the user is panning/zooming, SwiftUI can refresh before `regionDidChange`
+        // updates the binding; applying the stale binding here snaps the map back to the old center.
+        if !context.coordinator.isMapRegionChanging,
+           !mapView.region.isClose(to: region) {
             mapView.setRegion(region, animated: false)
         }
 
@@ -935,6 +1044,8 @@ struct HazardMapView: UIViewRepresentable {
     final class Coordinator: NSObject, MKMapViewDelegate {
         var parent: HazardMapView
         var lastRenderKey = ""
+        /// True between `regionWillChange` and `regionDidChange` (user or programmatic); avoids clobbering the visible map during interactive moves.
+        var isMapRegionChanging = false
 
         init(_ parent: HazardMapView) {
             self.parent = parent
@@ -958,8 +1069,13 @@ struct HazardMapView: UIViewRepresentable {
             parent.onDropPin(coordinate)
         }
 
+        func mapView(_ mapView: MKMapView, regionWillChangeAnimated animated: Bool) {
+            isMapRegionChanging = true
+        }
+
         func mapView(_ mapView: MKMapView, regionDidChangeAnimated animated: Bool) {
             parent.region = mapView.region
+            isMapRegionChanging = false
         }
 
         func mapView(_ mapView: MKMapView, rendererFor overlay: MKOverlay) -> MKOverlayRenderer {
