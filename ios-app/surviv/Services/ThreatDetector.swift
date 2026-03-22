@@ -277,23 +277,19 @@ final class ThreatDetector {
         let pct = Int(round(combinedConfidence * 100))
         let displayLabel = "Danger — \(topContributor) (\(pct)%)"
         lastDetectedThreat = displayLabel
-        let pin = createDangerPin(
-            displayLabel: displayLabel,
-            threatClassLabel: topContributor,
-            combinedConfidence: combinedConfidence
-        )
+        let pin = createDangerPin(displayLabel: displayLabel, threatClassLabel: topContributor)
         onThreatDetected?(displayLabel, pin)
     }
 
+    /// Preset copy for ML-created pins (class is also stored on ``HazardPin/threatClassLabel``).
+    private static func mlDetectionWarningReason(threatClassLabel: String) -> String {
+        "Warning: On-device audio analysis flagged possible \(threatClassLabel) activity near here. Treat this zone as unsafe until you can confirm otherwise—keep your distance and stay alert."
+    }
+
     @MainActor
-    func createDangerPin(
-        displayLabel: String,
-        threatClassLabel: String,
-        combinedConfidence: Double
-    ) -> HazardPin {
+    func createDangerPin(displayLabel: String, threatClassLabel: String) -> HazardPin {
         let lat = locationManager.currentLocation?.coordinate.latitude ?? 0
         let lon = locationManager.currentLocation?.coordinate.longitude ?? 0
-        let pct = Int(round(combinedConfidence * 100))
 
         let pin = HazardPin(
             latitude: lat,
@@ -303,7 +299,7 @@ final class ThreatDetector {
             label: displayLabel,
             createdByUsername: SurvivProfile.displayName,
             threatClassLabel: threatClassLabel,
-            reasonMessage: "Acoustic detection triggered this pin (\(pct)% combined model confidence)."
+            reasonMessage: Self.mlDetectionWarningReason(threatClassLabel: threatClassLabel)
         )
         modelContext.insert(pin)
         try? modelContext.save()
