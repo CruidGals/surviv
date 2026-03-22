@@ -36,6 +36,12 @@ struct AdminTabView: View {
                 .padding(.horizontal, 16)
                 .padding(.bottom, 14)
         }
+        .onAppear {
+            networker.applyAppAdminState(isAdmin)
+        }
+        .onChange(of: isAdmin) { _, newValue in
+            networker.applyAppAdminState(newValue)
+        }
     }
 }
 

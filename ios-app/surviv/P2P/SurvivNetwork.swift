@@ -12,17 +12,47 @@ class SurvivNetworker: NSObject, ObservableObject {
 
     private let pendingMeshLock = NSLock()
     private var pendingMeshPayloads: [Data] = []
+    private var pendingAdminPayloads: [Data] = []
     private var hadConnectedPeers = false
     private static let maxPendingMeshPayloads = 64
+    private static let maxPendingAdminPayloads = 32
 
     @Published var connectedPeers: [MCPeerID] = []
     @Published var incomingMessages: [SurvivPacket] = []
     @Published var userRole: Role = .scout
-    @Published var seenMessageIds = Set<UUID>()
     /// Latest high-priority admin text for UI banners (deduped by packet id).
     @Published var latestAdminAnnouncement: SurvivPacket?
 
     var onHazardPinWire: ((HazardPinWire) -> Void)?
+
+    /// Dedup must run synchronously when data arrives: multiple `didReceive` callbacks can enqueue main work before `@Published` updates, so async-only dedup allowed duplicate relays and UI rows.
+    private let meshDedupLock = NSLock()
+    private var seenSurvivPacketIds = Set<UUID>()
+    private var seenPinWireIds = Set<UUID>()
+
+    @discardableResult
+    private func claimSurvivPacketIdIfNew(_ id: UUID) -> Bool {
+        meshDedupLock.lock()
+        defer { meshDedupLock.unlock() }
+        guard !seenSurvivPacketIds.contains(id) else { return false }
+        seenSurvivPacketIds.insert(id)
+        return true
+    }
+
+    @discardableResult
+    private func claimPinWireIdIfNew(_ id: UUID) -> Bool {
+        meshDedupLock.lock()
+        defer { meshDedupLock.unlock() }
+        guard !seenPinWireIds.contains(id) else { return false }
+        seenPinWireIds.insert(id)
+        return true
+    }
+
+    private func appendIncomingAdminBroadcast(_ packet: SurvivPacket) {
+        guard !incomingMessages.contains(where: { $0.id == packet.id }) else { return }
+        incomingMessages = incomingMessages + [packet]
+        latestAdminAnnouncement = packet
+    }
 
     func applyAppAdminState(_ isAdmin: Bool) {
         userRole = isAdmin ? .admin : .scout
@@ -54,22 +84,41 @@ class SurvivNetworker: NSObject, ObservableObject {
     }
 
     func broadcast(message: String) {
-        guard !session.connectedPeers.isEmpty else { return }
         guard userRole == .admin else {
             print("Access denied: You are not an admin")
             return
         }
 
         let packet = SurvivPacket(senderName: resolvedSenderName(), role: .admin, message: message)
-        if let data = packet.encode() {
-            do {
-                try session.send(data, toPeers: session.connectedPeers, with: .reliable)
-                incomingMessages.append(packet)
-                seenMessageIds.insert(packet.id)
-                latestAdminAnnouncement = packet
-            } catch {
-                print("Error sending: \(error.localizedDescription)")
+        guard let data = packet.encode() else { return }
+
+        guard claimSurvivPacketIdIfNew(packet.id) else { return }
+
+        let applyLocal: () -> Void = { [weak self] in
+            guard let self else { return }
+            self.appendIncomingAdminBroadcast(packet)
+        }
+
+        if Thread.isMainThread {
+            applyLocal()
+        } else {
+            DispatchQueue.main.async(execute: applyLocal)
+        }
+
+        let peers = session.connectedPeers
+        if peers.isEmpty {
+            pendingMeshLock.lock()
+            if pendingAdminPayloads.count < Self.maxPendingAdminPayloads {
+                pendingAdminPayloads.append(data)
             }
+            pendingMeshLock.unlock()
+            return
+        }
+
+        do {
+            try session.send(data, toPeers: peers, with: .reliable)
+        } catch {
+            print("Error sending: \(error.localizedDescription)")
         }
     }
 
@@ -92,10 +141,26 @@ class SurvivNetworker: NSObject, ObservableObject {
         pendingMeshLock.lock()
         let batch = pendingMeshPayloads
         pendingMeshPayloads.removeAll()
+        let adminBatch = pendingAdminPayloads
+        pendingAdminPayloads.removeAll()
         pendingMeshLock.unlock()
-        guard !batch.isEmpty, !session.connectedPeers.isEmpty else { return }
+        let peers = session.connectedPeers
+        guard !peers.isEmpty else {
+            pendingMeshLock.lock()
+            if !batch.isEmpty {
+                pendingMeshPayloads = batch + pendingMeshPayloads
+            }
+            if !adminBatch.isEmpty {
+                pendingAdminPayloads = adminBatch + pendingAdminPayloads
+            }
+            pendingMeshLock.unlock()
+            return
+        }
         for data in batch {
-            try? session.send(data, toPeers: session.connectedPeers, with: .reliable)
+            try? session.send(data, toPeers: peers, with: .reliable)
+        }
+        for data in adminBatch {
+            try? session.send(data, toPeers: peers, with: .reliable)
         }
     }
 
@@ -127,11 +192,29 @@ extension SurvivNetworker: MCSessionDelegate {
     }
 
     func session(_ session: MCSession, didReceive data: Data, fromPeer peerID: MCPeerID) {
-        if let pinWire = try? JSONDecoder().decode(HazardPinWire.self, from: data) {
-            DispatchQueue.main.async {
-                if self.seenMessageIds.contains(pinWire.id) { return }
-                self.seenMessageIds.insert(pinWire.id)
+        // Resolve admin text packets first (distinct JSON shape from ``HazardPinWire``).
+        if let packet = SurvivPacket.decode(from: data) {
+            guard claimSurvivPacketIdIfNew(packet.id) else { return }
 
+            DispatchQueue.main.async {
+                if packet.role == .admin {
+                    self.appendIncomingAdminBroadcast(packet)
+
+                    let otherPeers = self.session.connectedPeers.filter { $0 != peerID }
+                    if !otherPeers.isEmpty && packet.hopCount < 10 {
+                        var relayPacket = packet
+                        relayPacket.hopCount += 1
+                        self.send(packet: relayPacket, toPeers: otherPeers)
+                    }
+                }
+            }
+            return
+        }
+
+        if let pinWire = try? JSONDecoder().decode(HazardPinWire.self, from: data) {
+            guard claimPinWireIdIfNew(pinWire.id) else { return }
+
+            DispatchQueue.main.async {
                 self.onHazardPinWire?(pinWire)
 
                 let otherPeers = session.connectedPeers.filter { $0 != peerID }
@@ -141,26 +224,6 @@ extension SurvivNetworker: MCSessionDelegate {
                     if let relayData = try? JSONEncoder().encode(relay) {
                         try? session.send(relayData, toPeers: otherPeers, with: .reliable)
                     }
-                }
-            }
-            return
-        }
-
-        guard let packet = SurvivPacket.decode(from: data) else { return }
-
-        DispatchQueue.main.async {
-            if self.seenMessageIds.contains(packet.id) { return }
-            self.seenMessageIds.insert(packet.id)
-
-            if packet.role == .admin {
-                self.incomingMessages.append(packet)
-                self.latestAdminAnnouncement = packet
-
-                let otherPeers = self.session.connectedPeers.filter { $0 != peerID }
-                if !otherPeers.isEmpty && packet.hopCount < 10 {
-                    var relayPacket = packet
-                    relayPacket.hopCount += 1
-                    self.send(packet: relayPacket, toPeers: otherPeers)
                 }
             }
         }

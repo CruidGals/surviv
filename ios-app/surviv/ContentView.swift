@@ -117,7 +117,7 @@ struct ContentView: View {
                 .presentationCornerRadius(22)
         }
         .sheet(isPresented: $showBroadcastMessages) {
-            BroadcastMessagesSheet()
+            BroadcastMessagesSheet(networker: networker)
                 .presentationDetents([.medium, .large])
                 .presentationCornerRadius(22)
         }
@@ -630,7 +630,8 @@ private struct CivilianSettingsSheet: View {
 }
 
 private struct BroadcastMessagesSheet: View {
-    @EnvironmentObject private var networker: SurvivNetworker
+    /// Observed directly so the sheet reliably redraws when mesh-delivered admin packets append to ``SurvivNetworker/incomingMessages``.
+    @ObservedObject var networker: SurvivNetworker
     @Environment(\.dismiss) private var dismiss
 
     private var orderedPackets: [SurvivPacket] {
