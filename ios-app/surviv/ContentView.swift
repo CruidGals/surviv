@@ -33,7 +33,9 @@ struct ContentView: View {
                         latitude: coordinate.latitude,
                         longitude: coordinate.longitude,
                         pinType: model.selectedPinType,
-                        radiusMeters: model.zoneRadiusMeters
+                        threatSource: .manual,
+                        radiusMeters: model.zoneRadiusMeters,
+                        label: model.selectedPinType == .danger ? "Manual hazard" : "Manual safe route"
                     )
                     modelContext.insert(pin)
                     coordinator.broadcastPin(pin)
@@ -70,10 +72,7 @@ struct ContentView: View {
                         guard let last = pins.first else { return }
                         last.radiusMeters = model.zoneRadiusMeters
                     },
-                    onDownloadArea: model.downloadCurrentArea,
-                    onClearPins: {
-                        for pin in pins { modelContext.delete(pin) }
-                    }
+                    onDownloadArea: model.downloadCurrentArea
                 )
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
@@ -350,7 +349,6 @@ private struct BottomHazardChrome: View {
     let onSelectType: (PinType) -> Void
     let onApplyRadiusToLast: () -> Void
     let onDownloadArea: () -> Void
-    let onClearPins: () -> Void
 
     var body: some View {
         VStack(spacing: 0) {
@@ -370,8 +368,7 @@ private struct BottomHazardChrome: View {
                     isDownloading: isDownloading,
                     onSelectType: onSelectType,
                     onApplyRadiusToLast: onApplyRadiusToLast,
-                    onDownloadArea: onDownloadArea,
-                    onClearPins: onClearPins
+                    onDownloadArea: onDownloadArea
                 )
                 .padding(.horizontal, 16)
                 .padding(.top, 4)
@@ -721,7 +718,6 @@ private struct ControlPanel: View {
     let onSelectType: (PinType) -> Void
     let onApplyRadiusToLast: () -> Void
     let onDownloadArea: () -> Void
-    let onClearPins: () -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -776,23 +772,15 @@ private struct ControlPanel: View {
                 Spacer()
             }
 
-            HStack(spacing: 10) {
-                Button(action: onDownloadArea) {
-                    Label(
-                        isDownloading ? "Caching..." : "Preload Area",
-                        systemImage: "arrow.down.circle"
-                    )
-                    .frame(maxWidth: .infinity)
-                }
-                .buttonStyle(.borderedProminent)
-                .disabled(isDownloading)
-
-                Button(action: onClearPins) {
-                    Label("Clear Zones", systemImage: "trash")
-                        .frame(maxWidth: .infinity)
-                }
-                .buttonStyle(.bordered)
+            Button(action: onDownloadArea) {
+                Label(
+                    isDownloading ? "Caching..." : "Preload Area",
+                    systemImage: "arrow.down.circle"
+                )
+                .frame(maxWidth: .infinity)
             }
+            .buttonStyle(.borderedProminent)
+            .disabled(isDownloading)
         }
         .padding(14)
         .background(ProjectTheme.panel, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
