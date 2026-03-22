@@ -474,58 +474,194 @@ private struct AdminBroadcastView: View {
     @EnvironmentObject private var networker: SurvivNetworker
     @State private var messageInput = ""
 
+    private var trimmedMessage: String {
+        messageInput.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private var canBroadcast: Bool {
+        !trimmedMessage.isEmpty
+    }
+
     var body: some View {
         NavigationStack {
-            List {
-                Section {
-                    ForEach(networker.incomingMessages.reversed(), id: \.id) { packet in
-                        VStack(alignment: .leading, spacing: 6) {
-                            Text(packet.senderName)
-                                .font(.caption.weight(.bold))
-                                .foregroundStyle(SurvivTheme.safe)
-                            Text(packet.message)
-                                .font(.system(size: 15, weight: .semibold, design: .rounded))
-                                .foregroundStyle(.white)
-                            Text(packet.timestamp, style: .time)
-                                .font(.caption2)
-                                .foregroundStyle(SurvivTheme.textSecondary)
+            let feedMessages = Array(networker.incomingMessages.reversed())
+
+            ZStack {
+                Color.black
+                    .ignoresSafeArea()
+
+                LinearGradient(
+                    colors: [Color(red: 0.22, green: 0.05, blue: 0.07).opacity(0.30), .clear, Color(red: 0.05, green: 0.11, blue: 0.13).opacity(0.32)],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
+                .ignoresSafeArea()
+                .allowsHitTesting(false)
+
+                VStack(spacing: 12) {
+                    VStack(alignment: .leading, spacing: 10) {
+                        HStack(spacing: 10) {
+                            ZStack {
+                                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                    .fill(SurvivTheme.danger.opacity(0.18))
+                                    .frame(width: 34, height: 34)
+                                Image(systemName: "megaphone.fill")
+                                    .font(.system(size: 16, weight: .heavy))
+                                    .foregroundStyle(SurvivTheme.danger)
+                            }
+
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Live Mesh Alerts")
+                                    .font(.system(size: 20, weight: .black, design: .rounded))
+                                    .foregroundStyle(SurvivTheme.textPrimary)
+                                Text("Broadcast and monitor emergency updates")
+                                    .font(.system(size: 12, weight: .medium, design: .rounded))
+                                    .foregroundStyle(SurvivTheme.textSecondary)
+                            }
+
+                            Spacer(minLength: 0)
                         }
-                        .listRowBackground(Color.black.opacity(0.9))
+
+                        HStack(spacing: 8) {
+                            Label("\(feedMessages.count) messages", systemImage: "bubble.left.and.bubble.right.fill")
+                                .font(.system(size: 11, weight: .semibold, design: .rounded))
+                                .foregroundStyle(SurvivTheme.textPrimary)
+                                .padding(.horizontal, 10)
+                                .padding(.vertical, 6)
+                                .background(Color.white.opacity(0.08), in: Capsule())
+
+                            Label("Mesh online", systemImage: "dot.radiowaves.left.and.right")
+                                .font(.system(size: 11, weight: .semibold, design: .rounded))
+                                .foregroundStyle(SurvivTheme.safe)
+                                .padding(.horizontal, 10)
+                                .padding(.vertical, 6)
+                                .background(SurvivTheme.safe.opacity(0.14), in: Capsule())
+
+                            Spacer(minLength: 0)
+                        }
                     }
-                } header: {
-                    Text("Mesh feed")
-                        .foregroundStyle(SurvivTheme.textSecondary)
+                    .padding(14)
+                    .background(Color.white.opacity(0.05), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 14, style: .continuous)
+                            .stroke(Color.white.opacity(0.10), lineWidth: 1)
+                    )
+                    .padding(.horizontal, 16)
+                    .padding(.top, 10)
+
+                    if feedMessages.isEmpty {
+                        VStack(spacing: 10) {
+                            Image(systemName: "bubble.left.and.exclamationmark.bubble.right.fill")
+                                .font(.system(size: 38, weight: .semibold))
+                                .foregroundStyle(SurvivTheme.textSecondary)
+                            Text("No Active Alerts")
+                                .font(.system(size: 18, weight: .heavy, design: .rounded))
+                                .foregroundStyle(SurvivTheme.textPrimary)
+                            Text("Your broadcasts will appear here in real time")
+                                .font(.system(size: 13, weight: .medium, design: .rounded))
+                                .foregroundStyle(SurvivTheme.textSecondary)
+                                .multilineTextAlignment(.center)
+                        }
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    } else {
+                        ScrollView {
+                            LazyVStack(spacing: 10) {
+                                ForEach(feedMessages, id: \.id) { packet in
+                                    AdminBroadcastRow(packet: packet)
+                                }
+                            }
+                            .padding(.horizontal, 16)
+                            .padding(.top, 2)
+                            .padding(.bottom, 8)
+                        }
+                    }
                 }
             }
-            .scrollContentBackground(.hidden)
-            .background(Color.black)
             .safeAreaInset(edge: .bottom, spacing: 10) {
                 VStack(alignment: .leading, spacing: 10) {
-                    TextField("Evacuate North…", text: $messageInput, axis: .vertical)
-                        .textFieldStyle(.roundedBorder)
+                    HStack {
+                        Text("Compose Alert")
+                            .font(.system(size: 12, weight: .heavy, design: .rounded))
+                            .foregroundStyle(SurvivTheme.textSecondary)
+                        Spacer(minLength: 0)
+                        Text("\(trimmedMessage.count) chars")
+                            .font(.system(size: 11, weight: .semibold, design: .rounded))
+                            .foregroundStyle(SurvivTheme.textSecondary)
+                    }
+
+                    TextField("Evacuate North Gate. Avoid Main Street.", text: $messageInput, axis: .vertical)
                         .lineLimit(3...6)
+                        .font(.system(size: 15, weight: .semibold, design: .rounded))
+                        .foregroundStyle(SurvivTheme.textPrimary)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 10)
+                        .background(Color.white.opacity(0.08), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                .stroke(Color.white.opacity(0.14), lineWidth: 1)
+                        )
+
                     Button {
-                        let trimmed = messageInput.trimmingCharacters(in: .whitespacesAndNewlines)
-                        guard !trimmed.isEmpty else { return }
-                        networker.broadcast(message: trimmed)
+                        guard canBroadcast else { return }
+                        networker.broadcast(message: trimmedMessage)
                         messageInput = ""
                     } label: {
-                        Label("Broadcast to mesh", systemImage: "antenna.radiowaves.left.and.right")
+                        Label("Broadcast", systemImage: "antenna.radiowaves.left.and.right")
                             .font(.system(size: 16, weight: .heavy, design: .rounded))
                             .frame(maxWidth: .infinity)
                             .padding(.vertical, 12)
                     }
-                    .buttonStyle(.borderedProminent)
-                    .tint(SurvivTheme.danger)
+                    .buttonStyle(.plain)
+                    .foregroundStyle(.white)
+                    .background(SurvivTheme.danger.opacity(canBroadcast ? 0.95 : 0.45), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 12, style: .continuous)
+                            .stroke(SurvivTheme.danger.opacity(0.95), lineWidth: 1)
+                    )
+                    .disabled(!canBroadcast)
                 }
                 .padding(16)
-                .background(.ultraThinMaterial)
+                .background(Color(red: 0.08, green: 0.10, blue: 0.12).opacity(0.96), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                        .stroke(Color.white.opacity(0.12), lineWidth: 1)
+                )
+                .padding(.horizontal, 12)
                 .padding(.bottom, 70)
             }
             .navigationTitle("Announcements")
             .navigationBarTitleDisplayMode(.inline)
             .toolbarColorScheme(.dark, for: .navigationBar)
         }
+    }
+}
+
+private struct AdminBroadcastRow: View {
+    let packet: SurvivPacket
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 8) {
+                Label(packet.senderName, systemImage: "person.wave.2.fill")
+                    .font(.system(size: 12, weight: .bold, design: .rounded))
+                    .foregroundStyle(SurvivTheme.safe)
+                Spacer(minLength: 0)
+                Text(packet.timestamp, style: .time)
+                    .font(.system(size: 11, weight: .semibold, design: .rounded))
+                    .foregroundStyle(SurvivTheme.textSecondary)
+            }
+
+            Text(packet.message)
+                .font(.system(size: 15, weight: .semibold, design: .rounded))
+                .foregroundStyle(SurvivTheme.textPrimary)
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .padding(12)
+        .background(Color.white.opacity(0.05), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .stroke(Color.white.opacity(0.10), lineWidth: 1)
+        )
     }
 }
 
