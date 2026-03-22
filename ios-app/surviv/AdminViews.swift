@@ -100,7 +100,12 @@ private struct MasterMapView: View {
                         guard let last = pins.first else { return }
                         last.radiusMeters = mapModel.zoneRadiusMeters
                     },
-                    onClearPins: {
+                    onUndoLastPin: {
+                        guard let last = pins.first else { return }
+                        modelContext.delete(last)
+                        try? modelContext.save()
+                    },
+                    onClearAllPins: {
                         for pin in pins { modelContext.delete(pin) }
                         try? modelContext.save()
                     }
@@ -129,7 +134,8 @@ private struct AdminBottomHazardChrome: View {
     let pinCount: Int
     let onSelectType: (PinType) -> Void
     let onApplyRadiusToLast: () -> Void
-    let onClearPins: () -> Void
+    let onUndoLastPin: () -> Void
+    let onClearAllPins: () -> Void
 
     var body: some View {
         VStack(spacing: 0) {
@@ -152,7 +158,8 @@ private struct AdminBottomHazardChrome: View {
                     pinCount: pinCount,
                     onSelectType: onSelectType,
                     onApplyRadiusToLast: onApplyRadiusToLast,
-                    onClearPins: onClearPins
+                    onUndoLastPin: onUndoLastPin,
+                    onClearAllPins: onClearAllPins
                 )
                 .padding(.horizontal, 16)
                 .padding(.top, 4)
@@ -221,7 +228,8 @@ private struct AdminMappingPanel: View {
     let pinCount: Int
     let onSelectType: (PinType) -> Void
     let onApplyRadiusToLast: () -> Void
-    let onClearPins: () -> Void
+    let onUndoLastPin: () -> Void
+    let onClearAllPins: () -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -276,12 +284,23 @@ private struct AdminMappingPanel: View {
                 Spacer()
             }
 
-            Button(action: onClearPins) {
-                Label("Clear Zones", systemImage: "trash")
-                    .frame(maxWidth: .infinity)
+            VStack(spacing: 8) {
+                Button(action: onUndoLastPin) {
+                    Label("Undo Last Zone", systemImage: "arrow.uturn.backward")
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.bordered)
+                .tint(.orange)
+                .disabled(pinCount == 0)
+
+                Button(action: onClearAllPins) {
+                    Label("Clear All Zones", systemImage: "trash")
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.bordered)
+                .tint(.red)
+                .disabled(pinCount == 0)
             }
-            .buttonStyle(.bordered)
-            .tint(.red)
         }
         .padding(14)
         .background(Color(red: 0.07, green: 0.11, blue: 0.14).opacity(0.84), in: RoundedRectangle(cornerRadius: 16, style: .continuous))

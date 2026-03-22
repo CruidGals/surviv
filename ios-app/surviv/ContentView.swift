@@ -860,7 +860,7 @@ final class MapViewModel: ObservableObject {
         guard !isDownloading else { return }
 
         isDownloading = true
-        downloadStatusMessage = "Preparing local map cache..."
+        downloadStatusMessage = "Preparing local map cache"
 
         let targetRegion = region
         Task {
@@ -1045,6 +1045,7 @@ struct HazardMapView: UIViewRepresentable {
 
     func makeUIView(context: Context) -> MKMapView {
         let mapView = MKMapView(frame: .zero)
+        mapView.mapType = .hybrid
         mapView.showsCompass = true
         mapView.showsScale = true
         mapView.isRotateEnabled = true
