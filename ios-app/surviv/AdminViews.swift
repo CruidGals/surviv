@@ -17,24 +17,44 @@ struct AdminTabView: View {
     @State private var selectedTab: AdminTab = .masterMap
 
     var body: some View {
-        ZStack(alignment: .bottom) {
-            Group {
-                switch selectedTab {
-                case .masterMap:
-                    MasterMapView()
-                case .queue:
-                    ThreatQueueView(viewModel: viewModel)
-                case .broadcast:
-                    AdminBroadcastView()
-                case .node:
-                    NodeSetupView(isAdmin: $isAdmin)
-                }
+        Group {
+            switch selectedTab {
+            case .masterMap:
+                MasterMapView()
+            case .queue:
+                ThreatQueueView(viewModel: viewModel)
+            case .broadcast:
+                AdminBroadcastView()
+            case .node:
+                NodeSetupView(isAdmin: $isAdmin)
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .safeAreaInset(edge: .bottom) {
             AdminBottomBar(selectedTab: $selectedTab)
                 .padding(.horizontal, 16)
-                .padding(.bottom, 14)
+                .padding(.top, 6)
+                .padding(.bottom, 8)
+                .background(.clear)
+        }
+        .overlay(alignment: .topTrailing) {
+            Button {
+                Haptics.impact(.medium)
+                isAdmin = false
+            } label: {
+                Label("Exit Admin", systemImage: "person")
+                    .font(.system(size: 12, weight: .heavy, design: .rounded))
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 8)
+                    .background(Color.black.opacity(0.56), in: Capsule())
+                    .overlay(
+                        Capsule().stroke(Color.white.opacity(0.3), lineWidth: 1)
+                    )
+            }
+            .buttonStyle(.plain)
+            .padding(.top, 12)
+            .padding(.trailing, 12)
         }
         .onAppear {
             networker.applyAppAdminState(isAdmin)
@@ -199,7 +219,7 @@ private struct AdminBottomHazardChrome: View {
                 }
         )
         .animation(.spring(response: 0.42, dampingFraction: 0.86), value: isExpanded)
-        .safeAreaPadding(.bottom, 6)
+        .safeAreaPadding(.bottom, 8)
     }
 }
 
@@ -353,30 +373,30 @@ private struct AdminBroadcastView: View {
 
     var body: some View {
         NavigationStack {
-            VStack(spacing: 0) {
-                List {
-                    Section {
-                        ForEach(networker.incomingMessages.reversed(), id: \.id) { packet in
-                            VStack(alignment: .leading, spacing: 6) {
-                                Text(packet.senderName)
-                                    .font(.caption.weight(.bold))
-                                    .foregroundStyle(SurvivTheme.safe)
-                                Text(packet.message)
-                                    .font(.system(size: 15, weight: .semibold, design: .rounded))
-                                    .foregroundStyle(.white)
-                                Text(packet.timestamp, style: .time)
-                                    .font(.caption2)
-                                    .foregroundStyle(SurvivTheme.textSecondary)
-                            }
-                            .listRowBackground(Color.black.opacity(0.9))
+            List {
+                Section {
+                    ForEach(networker.incomingMessages.reversed(), id: \.id) { packet in
+                        VStack(alignment: .leading, spacing: 6) {
+                            Text(packet.senderName)
+                                .font(.caption.weight(.bold))
+                                .foregroundStyle(SurvivTheme.safe)
+                            Text(packet.message)
+                                .font(.system(size: 15, weight: .semibold, design: .rounded))
+                                .foregroundStyle(.white)
+                            Text(packet.timestamp, style: .time)
+                                .font(.caption2)
+                                .foregroundStyle(SurvivTheme.textSecondary)
                         }
-                    } header: {
-                        Text("Mesh feed")
-                            .foregroundStyle(SurvivTheme.textSecondary)
+                        .listRowBackground(Color.black.opacity(0.9))
                     }
+                } header: {
+                    Text("Mesh feed")
+                        .foregroundStyle(SurvivTheme.textSecondary)
                 }
-                .scrollContentBackground(.hidden)
-
+            }
+            .scrollContentBackground(.hidden)
+            .background(Color.black)
+            .safeAreaInset(edge: .bottom, spacing: 10) {
                 VStack(alignment: .leading, spacing: 10) {
                     TextField("Evacuate North…", text: $messageInput, axis: .vertical)
                         .textFieldStyle(.roundedBorder)
@@ -397,8 +417,8 @@ private struct AdminBroadcastView: View {
                 }
                 .padding(16)
                 .background(.ultraThinMaterial)
+                .padding(.bottom, 70)
             }
-            .background(Color.black)
             .navigationTitle("Announcements")
             .navigationBarTitleDisplayMode(.inline)
             .toolbarColorScheme(.dark, for: .navigationBar)
