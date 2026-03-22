@@ -1,10 +1,19 @@
 # Surviv
 
-<img src="surviv_logo.png" alt="Surviv Logo" width="200" />
+<p align="center">
+	<img src="surviv_logo.png" alt="Surviv Logo" width="360" />
+</p>
 
 Surviv is a decentralized, offline mesh network app that turns ordinary iPhones into secure communication lifelines for civilians, journalists, and medical workers in conflict zones.
 
 When cellular and internet networks are down, blocked, or unsafe, Surviv still works. It enables anonymous peer-to-peer messaging, real-time hazard alerts, and on-device AI threat detection. Critical reports such as gunfire locations, shelling zones, and safer movement corridors can move through encrypted multi-hop relay chains from phone to phone.
+
+## App Screenshots
+
+<p align="center">
+	<img src="docs/screenshots/civilian-map.png" alt="Surviv civilian map view" width="360" />
+	<img src="docs/screenshots/admin-hazard-mapping.png" alt="Surviv admin hazard mapping view" width="360" />
+</p>
 
 ## Why This Matters
 
@@ -139,48 +148,7 @@ pip install coremltools
 python export_mad_coreml.py --checkpoint mad_runs/default/best.pt --out MADMelCNN.mlpackage
 ```
 
-## Demo Flow (Hackathon)
-
-1. Start two or more iPhones with Surviv nearby.
-2. Send an admin broadcast from one phone.
-3. Verify relay and appearance in alert feed across peers.
-4. Drop a danger pin and show map synchronization.
-5. Trigger or simulate threat detection and auto-generated hazard pin.
-6. Open threat history to show timeline, source attribution, and coordinates.
-
-## Security and Privacy Notes
-
-- Mesh communication is local and peer-to-peer.
-- Surviv is designed to avoid dependence on centralized servers during active operation.
-- Profile names are user controlled; users can choose low-identity naming.
-- Threat detection runs on device, reducing exposure of raw audio data.
-
-## Limitations and Next Steps
-
-Current prototype focus:
-
-- iOS-first implementation
-- Local mesh radius bound by peer proximity
-- Hazard routing recommendations are still in active development
-
 High-impact next features:
 
-- Delivery acknowledgements and read receipts for critical alerts
-- Offline danger-aware route guidance
+- Delivery acknowledgements for critical alerts
 - Trust scoring and report confidence model for conflicting field reports
-
-## Dataset Label Order (MAD)
-
-1. Communication
-2. Shooting
-3. Footsteps
-4. Shelling
-5. Vehicle
-6. Helicopter
-7. Fighter
-
-## Summary
-
-Surviv is built for the worst day, not the best day.
-
-It provides communication, hazard awareness, and AI-assisted threat signals in environments where traditional infrastructure cannot be trusted or may not exist at all.
