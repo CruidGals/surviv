@@ -21,6 +21,7 @@ struct ContentView: View {
     @State private var showBroadcastMessages = false
     @State private var selectedHazardPinDetailId: UUID?
     @State private var leftToolbarExpanded: LeftToolbarExpandedItem? = nil
+    @State private var isRoutingToSafety = false
 
     var body: some View {
         ZStack(alignment: .top) {
@@ -50,6 +51,13 @@ struct ContentView: View {
 
                 statusToastStack
                     .padding(.horizontal, 16)
+
+                RouteToSafetyButton(
+                    isRouting: $isRoutingToSafety,
+                    hasSafeZones: pins.contains { $0.pinType == .safeRoute }
+                )
+                .padding(.horizontal, 16)
+                .padding(.bottom, 12)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
 
@@ -815,6 +823,51 @@ private struct ZoneTypeButton: View {
                 )
         }
         .buttonStyle(.plain)
+    }
+}
+
+private struct RouteToSafetyButton: View {
+    @Binding var isRouting: Bool
+    let hasSafeZones: Bool
+
+    var body: some View {
+        Button {
+            Haptics.impact(.rigid)
+            withAnimation(.spring(response: 0.4, dampingFraction: 0.82)) {
+                isRouting.toggle()
+            }
+        } label: {
+            HStack(spacing: 10) {
+                Image(systemName: isRouting ? "xmark.circle.fill" : "location.fill")
+                    .font(.system(size: 18, weight: .bold))
+                    .foregroundStyle(.white)
+                    .contentTransition(.symbolEffect(.replace))
+
+                Text(isRouting ? "Cancel Route" : "Route to Safety")
+                    .font(.system(size: 16, weight: .heavy, design: .rounded))
+                    .foregroundStyle(.white)
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 14)
+            .background(
+                isRouting
+                    ? ProjectTheme.warning.opacity(0.9)
+                    : ProjectTheme.signal.opacity(0.9),
+                in: RoundedRectangle(cornerRadius: 14, style: .continuous)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .stroke(
+                        isRouting
+                            ? ProjectTheme.warning.opacity(0.6)
+                            : ProjectTheme.signal.opacity(0.6),
+                        lineWidth: 1
+                    )
+            )
+        }
+        .buttonStyle(.plain)
+        .disabled(!hasSafeZones && !isRouting)
+        .opacity(!hasSafeZones && !isRouting ? 0.45 : 1.0)
     }
 }
 
