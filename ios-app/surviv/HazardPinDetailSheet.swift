@@ -24,11 +24,6 @@ struct HazardPinDetailSheet: View {
         return s.isEmpty ? "Unknown" : s
     }
 
-    private var reasonLine: String {
-        let s = pin.reasonMessage.trimmingCharacters(in: .whitespacesAndNewlines)
-        return s.isEmpty ? "No reason on file." : s
-    }
-
     var body: some View {
         NavigationStack {
             ScrollView {
@@ -58,11 +53,30 @@ struct HazardPinDetailSheet: View {
                             .stroke(ProjectTheme.panelBorder, lineWidth: 1)
                     )
 
+                    if !pin.threatClassLabel.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("Threat class")
+                                .font(.system(size: 12, weight: .heavy, design: .rounded))
+                                .foregroundStyle(ProjectTheme.textSecondary)
+                            Text(pin.threatClassLabel)
+                                .font(.system(size: 15, weight: .medium, design: .rounded))
+                                .foregroundStyle(ProjectTheme.textPrimary)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(14)
+                        .background(ProjectTheme.panel, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                                .stroke(ProjectTheme.panelBorder, lineWidth: 1)
+                        )
+                    }
+
                     VStack(alignment: .leading, spacing: 8) {
                         Text("Reason")
                             .font(.system(size: 12, weight: .heavy, design: .rounded))
                             .foregroundStyle(ProjectTheme.textSecondary)
-                        Text(reasonLine)
+                        Text(pin.reasonMessage.trimmingCharacters(in: .whitespacesAndNewlines))
                             .font(.system(size: 15, weight: .medium, design: .rounded))
                             .foregroundStyle(ProjectTheme.textPrimary)
                             .fixedSize(horizontal: false, vertical: true)
@@ -74,24 +88,6 @@ struct HazardPinDetailSheet: View {
                         RoundedRectangle(cornerRadius: 14, style: .continuous)
                             .stroke(ProjectTheme.panelBorder, lineWidth: 1)
                     )
-
-                    if !pin.label.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                        VStack(alignment: .leading, spacing: 8) {
-                            Text("Label")
-                                .font(.system(size: 12, weight: .heavy, design: .rounded))
-                                .foregroundStyle(ProjectTheme.textSecondary)
-                            Text(pin.label)
-                                .font(.system(size: 13, weight: .medium, design: .rounded))
-                                .foregroundStyle(ProjectTheme.textSecondary)
-                        }
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(14)
-                        .background(ProjectTheme.panel, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                                .stroke(ProjectTheme.panelBorder, lineWidth: 1)
-                        )
-                    }
                 }
                 .padding(20)
             }

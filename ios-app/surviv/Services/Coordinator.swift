@@ -51,7 +51,14 @@ final class Coordinator: ObservableObject {
         return ((try? modelContext.fetch(descriptor))?.isEmpty == false)
     }
 
-    func dropHazardPin(at coordinate: CLLocationCoordinate2D, pinType: PinType, radiusMeters: Double = 120) {
+    func dropHazardPin(
+        at coordinate: CLLocationCoordinate2D,
+        pinType: PinType,
+        radiusMeters: Double = 120,
+        threatClassLabel: String,
+        reasonMessage: String,
+        label: String
+    ) {
         let pinId = UUID()
         let pin = HazardPin(
             id: pinId,
@@ -60,8 +67,10 @@ final class Coordinator: ObservableObject {
             pinType: pinType,
             threatSource: .manual,
             radiusMeters: radiusMeters,
+            label: label,
             createdByUsername: SurvivProfile.displayName,
-            reasonMessage: HazardPinReasons.arbitrary(for: pinType, seed: pinId)
+            threatClassLabel: threatClassLabel,
+            reasonMessage: reasonMessage
         )
         modelContext.insert(pin)
         try? modelContext.save()

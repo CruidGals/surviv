@@ -10,6 +10,7 @@ struct HazardPinWire: Codable, Equatable {
     var radiusMeters: Double
     var label: String
     var createdByUsername: String
+    var threatClassLabel: String
     var reasonMessage: String
     var sourceDeviceID: String
     var timestamp: Date
@@ -24,6 +25,7 @@ struct HazardPinWire: Codable, Equatable {
         self.radiusMeters = pin.radiusMeters
         self.label = pin.label
         self.createdByUsername = pin.createdByUsername
+        self.threatClassLabel = pin.threatClassLabel
         self.reasonMessage = pin.reasonMessage
         self.sourceDeviceID = pin.sourceDeviceID
         self.timestamp = pin.timestamp
@@ -32,7 +34,7 @@ struct HazardPinWire: Codable, Equatable {
 
     enum CodingKeys: String, CodingKey {
         case id, latitude, longitude, pinType, threatSource, radiusMeters, label
-        case createdByUsername, reasonMessage
+        case createdByUsername, threatClassLabel, reasonMessage
         case sourceDeviceID, timestamp, hopCount
     }
 
@@ -46,6 +48,7 @@ struct HazardPinWire: Codable, Equatable {
         radiusMeters = try c.decode(Double.self, forKey: .radiusMeters)
         label = try c.decode(String.self, forKey: .label)
         createdByUsername = try c.decodeIfPresent(String.self, forKey: .createdByUsername) ?? ""
+        threatClassLabel = try c.decodeIfPresent(String.self, forKey: .threatClassLabel) ?? ""
         reasonMessage = try c.decodeIfPresent(String.self, forKey: .reasonMessage) ?? ""
         sourceDeviceID = try c.decode(String.self, forKey: .sourceDeviceID)
         timestamp = try c.decode(Date.self, forKey: .timestamp)
@@ -62,6 +65,7 @@ struct HazardPinWire: Codable, Equatable {
         try c.encode(radiusMeters, forKey: .radiusMeters)
         try c.encode(label, forKey: .label)
         try c.encode(createdByUsername, forKey: .createdByUsername)
+        try c.encode(threatClassLabel, forKey: .threatClassLabel)
         try c.encode(reasonMessage, forKey: .reasonMessage)
         try c.encode(sourceDeviceID, forKey: .sourceDeviceID)
         try c.encode(timestamp, forKey: .timestamp)
@@ -78,6 +82,7 @@ struct HazardPinWire: Codable, Equatable {
             radiusMeters: radiusMeters,
             label: label,
             createdByUsername: createdByUsername,
+            threatClassLabel: threatClassLabel,
             reasonMessage: reasonMessage,
             sourceDeviceID: sourceDeviceID,
             timestamp: timestamp

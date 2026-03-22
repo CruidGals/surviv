@@ -9,11 +9,6 @@ final class ThreatDetector {
 
     private let modelResourceName = "MADMelCNN"
 
-    /// All classes the model considers dangerous.
-    private let threatLabels: Set<String> = [
-        "Shooting", "Shelling", "Helicopter", "Fighter", "Vehicle", "Drone"
-    ]
-
     /// Combined probability of *all* threat classes must reach this to fire.
     private let dangerThreshold: Double = 0.75
 
@@ -243,7 +238,7 @@ final class ThreatDetector {
         guard let provider = try? MLDictionaryFeatureProvider(dictionary: [waveformInputName: input]),
               let out = try? model.prediction(from: provider) else { return nil }
 
-        return Self.aggregateThreatConfidence(from: out, threatLabels: threatLabels)
+        return Self.aggregateThreatConfidence(from: out, threatLabels: ThreatClassLabels.set)
     }
 
     /// Sum probabilities of all threat classes from model output.
@@ -282,14 +277,23 @@ final class ThreatDetector {
         let pct = Int(round(combinedConfidence * 100))
         let displayLabel = "Danger — \(topContributor) (\(pct)%)"
         lastDetectedThreat = displayLabel
-        let pin = createDangerPin(displayLabel: displayLabel)
+        let pin = createDangerPin(
+            displayLabel: displayLabel,
+            threatClassLabel: topContributor,
+            combinedConfidence: combinedConfidence
+        )
         onThreatDetected?(displayLabel, pin)
     }
 
     @MainActor
-    func createDangerPin(displayLabel: String) -> HazardPin {
+    func createDangerPin(
+        displayLabel: String,
+        threatClassLabel: String,
+        combinedConfidence: Double
+    ) -> HazardPin {
         let lat = locationManager.currentLocation?.coordinate.latitude ?? 0
         let lon = locationManager.currentLocation?.coordinate.longitude ?? 0
+        let pct = Int(round(combinedConfidence * 100))
 
         let pin = HazardPin(
             latitude: lat,
@@ -298,7 +302,8 @@ final class ThreatDetector {
             threatSource: .audioDetection,
             label: displayLabel,
             createdByUsername: SurvivProfile.displayName,
-            reasonMessage: "Acoustic detection triggered this pin: \(displayLabel)"
+            threatClassLabel: threatClassLabel,
+            reasonMessage: "Acoustic detection triggered this pin (\(pct)% combined model confidence)."
         )
         modelContext.insert(pin)
         try? modelContext.save()
