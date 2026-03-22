@@ -1,63 +1,68 @@
 # Surviv
 
-![Surviv Logo](surviv_logo.png)
+<img src="surviv_logo.png" alt="Surviv Logo" width="200" />
 
-Offline-first emergency coordination app with:
+Surviv is a decentralized, offline mesh network app that turns ordinary iPhones into secure communication lifelines for civilians, journalists, and medical workers in conflict zones.
 
-- iOS mesh networking and hazard mapping
-- On-device audio threat detection (Core ML)
-- Python training and evaluation pipeline for MAD mel-CNN
+When cellular and internet networks are down, blocked, or unsafe, Surviv still works. It enables anonymous peer-to-peer messaging, real-time hazard alerts, and on-device AI threat detection. Critical reports such as gunfire locations, shelling zones, and safer movement corridors can move through encrypted multi-hop relay chains from phone to phone.
 
-## What Is In This Repo
+## Why This Matters
 
-### 1) ios-app
+In high-risk environments, people do not fail because they lack courage. They fail because they lack trusted information at the right moment.
 
-SwiftUI iOS app that supports:
+Surviv focuses on three hard constraints:
 
-- Two modes: civilian and admin
-- Real-time local map with danger and safe-route pins
-- Threat history timeline with metadata (source user, class label, reason, radius)
-- Mesh relay of admin announcements and hazard pins using Multipeer Connectivity
-- On-device microphone burst analysis with bundled Core ML model
+- No network dependency: communication should not require towers or internet.
+- Low-latency local coordination: nearby people need shared situational awareness now, not later.
+- Privacy by design: identity and location sharing should be intentional and minimal.
 
-Main app entrypoint:
+## What Surviv Does
 
-- ios-app/surviv/survivApp.swift
+1. Peer-to-peer emergency messaging
+- Admin users can broadcast high-priority alerts.
+- Messages relay across nearby devices with hop tracking and deduplication.
 
-Core app systems:
+2. Live hazard mapping
+- Users and admins can create danger and safe-route pins.
+- Hazard pins synchronize across the mesh and appear on all connected devices.
+- Threat history stores who reported, what type of threat, and when.
 
-- Coordinator orchestration: ios-app/surviv/Services/Coordinator.swift
-- Mesh transport: ios-app/surviv/P2P/SurvivNetwork.swift
-- Hazard pin wire format: ios-app/surviv/P2P/SurvivMeshWire.swift
-- Audio detector: ios-app/surviv/Services/ThreatDetector.swift
+3. AI-assisted threat detection on device
+- The app runs a Core ML audio model locally.
+- It listens in short bursts, classifies likely threats, and can auto-drop danger pins.
+- No cloud inference required.
 
-Bundled model package currently in app source:
+4. Offline-first coordination
+- If peers are temporarily unavailable, payloads are queued and flushed when links return.
+- The app continues to provide local map awareness and historical context.
 
-- ios-app/surviv/Packages/MADMelCNN.mlpackage
+## System Design (High Level)
 
-### 2) ai-engine
+Surviv combines four layers:
 
-Python scripts and modules for training and exporting a lightweight mel-CNN:
+- Interface layer (SwiftUI): civilian and admin views, map overlays, alert feed, threat history.
+- Coordination layer: app lifecycle, location updates, detector events, pin creation/broadcast flow.
+- Mesh transport layer: Multipeer Connectivity session management, relay logic, dedup, pending queues.
+- AI layer: PyTorch training pipeline -> Core ML package -> on-device inference.
 
-- train_mad.py: train model checkpoints
-- test_mad.py: evaluate checkpoint on held-out test split
-- live_mic_mad.py: live microphone inference in terminal
-- export_mad_coreml.py: convert trained checkpoint to Core ML .mlpackage
+This structure keeps the product resilient: if one path fails (for example, mesh link drops), local functions still remain available.
 
-Internal module package:
+## Core Technical Features
 
-- ai-engine/mad/
+- Multipeer networking with multi-hop relay
+- Packet and hazard deduplication for mesh stability
+- Role-aware behavior (civilian/admin)
+- SwiftData persistence for hazard and audio records
+- On-device microphone inference with configurable confidence threshold
+- Hazard metadata model (source, threat label, reason, timestamp, radius)
 
-Default training output folder:
-
-- ai-engine/mad_runs/default/
-
-## Repository Layout
+## Repository Structure
 
 ```text
 surviv/
 	README.md
 	requirements.txt
+	surviv_logo.png
 	ai-engine/
 		train_mad.py
 		test_mad.py
@@ -74,27 +79,28 @@ surviv/
 			Packages/MADMelCNN.mlpackage
 ```
 
-## Prerequisites
+## Tech Stack
 
-### Python side (ai-engine)
-
-- Python 3.11 or 3.12 recommended
-- Install PyTorch build matching your hardware from https://pytorch.org/
-- Remaining deps from requirements.txt
-
-For Core ML export:
-
-- coremltools installed in the same environment
-
-### iOS side
-
-- macOS + Xcode
-- iOS device/simulator target supported by your Xcode toolchain
-- Mic and location permissions when running the app
+- iOS app: SwiftUI, SwiftData, CoreLocation, AVFoundation, MultipeerConnectivity, Core ML
+- AI engine: Python, PyTorch, torchaudio, NumPy
+- Model target: Core ML package for on-device iPhone inference
 
 ## Quick Start
 
-### 1) Set up Python environment
+### A) Run the iOS app
+
+1. Open ios-app/surviv.xcodeproj in Xcode.
+2. Select a simulator or iPhone.
+3. Build and run.
+4. Grant location and microphone permissions.
+
+Default behavior:
+
+- App starts in civilian mode.
+- Admin mode enables broadcast and hazard-management controls.
+- Mesh messages and hazard pins relay between nearby peers.
+
+### B) Run the AI pipeline
 
 From repository root:
 
@@ -105,73 +111,65 @@ pip install --upgrade pip
 pip install -r requirements.txt
 ```
 
-Optional for Core ML export:
+Install a PyTorch build that matches your system from https://pytorch.org/.
 
-```bash
-pip install coremltools
-```
-
-### 2) Train model
-
-From ai-engine:
+Train:
 
 ```bash
 cd ai-engine
 python train_mad.py --data-root MAD_dataset --epochs 30 --out-dir mad_runs/default
 ```
 
-Notes:
-
-- Expects MAD_dataset/training.csv and audio files under MAD_dataset/
-- Writes best.pt, last.pt, and config.json under out-dir
-
-### 3) Evaluate model
+Evaluate:
 
 ```bash
 python test_mad.py --checkpoint mad_runs/default/best.pt --data-root MAD_dataset
 ```
 
-Outputs next to checkpoint:
-
-- confusion_matrix.npy
-- test_metrics.json
-
-### 4) Live microphone inference (terminal)
+Live microphone inference:
 
 ```bash
 python live_mic_mad.py --checkpoint mad_runs/default/best.pt
 ```
 
-Optional:
-
-- List devices: python live_mic_mad.py --list-devices
-- Select device: python live_mic_mad.py --mic-device <index>
-
-### 5) Export to Core ML package
+Export to Core ML package:
 
 ```bash
+pip install coremltools
 python export_mad_coreml.py --checkpoint mad_runs/default/best.pt --out MADMelCNN.mlpackage
 ```
 
-Then place/update the exported package in the iOS app package location as needed.
+## Demo Flow (Hackathon)
 
-## Running The iOS App
+1. Start two or more iPhones with Surviv nearby.
+2. Send an admin broadcast from one phone.
+3. Verify relay and appearance in alert feed across peers.
+4. Drop a danger pin and show map synchronization.
+5. Trigger or simulate threat detection and auto-generated hazard pin.
+6. Open threat history to show timeline, source attribution, and coordinates.
 
-1. Open ios-app/surviv.xcodeproj in Xcode.
-2. Select a simulator or physical device.
-3. Build and run.
-4. Grant location and microphone permissions.
+## Security and Privacy Notes
 
-Behavior at runtime:
+- Mesh communication is local and peer-to-peer.
+- Surviv is designed to avoid dependence on centralized servers during active operation.
+- Profile names are user controlled; users can choose low-identity naming.
+- Threat detection runs on device, reducing exposure of raw audio data.
 
-- App starts in civilian mode by default.
-- Admin mode unlocks map management, broadcast alerts, and threat history views.
-- Mesh announcements and hazard pins relay across nearby peers.
-- Audio detector can drop danger pins based on on-device model confidence.
+## Limitations and Next Steps
 
-## Data And Labels
+Current prototype focus:
 
-Default class order for the MAD model (from ai-engine/mad/mad_labels.py):
+- iOS-first implementation
+- Local mesh radius bound by peer proximity
+- Hazard routing recommendations are still in active development
+
+High-impact next features:
+
+- Delivery acknowledgements and read receipts for critical alerts
+- Offline danger-aware route guidance
+- Trust scoring and report confidence model for conflicting field reports
+
+## Dataset Label Order (MAD)
 
 1. Communication
 2. Shooting
@@ -181,8 +179,8 @@ Default class order for the MAD model (from ai-engine/mad/mad_labels.py):
 6. Helicopter
 7. Fighter
 
-## Notes
+## Summary
 
-- requirements.txt does not include coremltools by default.
-- The Python scripts expect MAD dataset CSV/audio files to be present locally.
-- The iOS app uses SwiftData for persisted HazardPin and AudioRecording models.
+Surviv is built for the worst day, not the best day.
+
+It provides communication, hazard awareness, and AI-assisted threat signals in environments where traditional infrastructure cannot be trusted or may not exist at all.
