@@ -453,54 +453,61 @@ private struct CivilianSettingsSheet: View {
             VStack(alignment: .leading, spacing: 20) {
                 Text("Settings")
                     .font(.system(size: 28, weight: .black, design: .rounded))
-                    .foregroundStyle(ProjectTheme.textPrimary)
+                    .foregroundStyle(SurvivTheme.textPrimary)
 
                 VStack(alignment: .leading, spacing: 10) {
-                    Text("Profile")
+                    Text("Your Identity")
                         .font(.system(size: 12, weight: .heavy, design: .rounded))
-                        .foregroundStyle(ProjectTheme.textSecondary)
+                        .foregroundStyle(SurvivTheme.textSecondary)
 
                     HStack {
                         VStack(alignment: .leading, spacing: 4) {
                             Text(currentDisplayName)
                                 .font(.system(size: 18, weight: .heavy, design: .rounded))
-                                .foregroundStyle(ProjectTheme.textPrimary)
-                            Text("Used for mesh broadcasts and alerts")
+                                .foregroundStyle(SurvivTheme.textPrimary)
+                            Text("How you're identified on the mesh network")
                                 .font(.system(size: 12, weight: .medium, design: .rounded))
-                                .foregroundStyle(ProjectTheme.textSecondary)
+                                .foregroundStyle(SurvivTheme.textSecondary)
                         }
                         Spacer()
                         Button("Edit") {
                             showProfileEditor = true
                         }
-                        .buttonStyle(.borderedProminent)
+                        .font(.system(size: 13, weight: .heavy, design: .rounded))
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 8)
+                        .background(
+                            SurvivTheme.safe.opacity(0.8),
+                            in: RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        )
                     }
                     .padding(14)
-                    .background(ProjectTheme.panel, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                    .background(Color.white.opacity(0.05), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
                     .overlay(
                         RoundedRectangle(cornerRadius: 14, style: .continuous)
-                            .stroke(ProjectTheme.panelBorder, lineWidth: 1)
+                            .stroke(Color.white.opacity(0.12), lineWidth: 1)
                     )
                 }
 
                 VStack(alignment: .leading, spacing: 10) {
                     Text("About")
                         .font(.system(size: 12, weight: .heavy, design: .rounded))
-                        .foregroundStyle(ProjectTheme.textSecondary)
+                        .foregroundStyle(SurvivTheme.textSecondary)
 
                     HStack {
                         Image(systemName: "info.circle")
-                            .foregroundStyle(ProjectTheme.textSecondary)
+                            .foregroundStyle(SurvivTheme.safe)
                         Text("Version 1.0.0")
                             .font(.system(size: 14, weight: .semibold, design: .rounded))
-                            .foregroundStyle(ProjectTheme.textPrimary)
+                            .foregroundStyle(SurvivTheme.textPrimary)
                         Spacer()
                     }
                     .padding(12)
-                    .background(ProjectTheme.panel, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                    .background(Color.white.opacity(0.05), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
                     .overlay(
                         RoundedRectangle(cornerRadius: 12, style: .continuous)
-                            .stroke(ProjectTheme.panelBorder, lineWidth: 1)
+                            .stroke(Color.white.opacity(0.12), lineWidth: 1)
                     )
                     .contentShape(Rectangle())
                     .onTapGesture {
@@ -524,18 +531,24 @@ private struct CivilianSettingsSheet: View {
                     VStack(alignment: .leading, spacing: 16) {
                         Text("Admin unlock")
                             .font(.system(size: 22, weight: .heavy, design: .rounded))
+                            .foregroundStyle(SurvivTheme.textPrimary)
                         Text("Enter the operations passcode.")
                             .font(.subheadline)
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(SurvivTheme.textSecondary)
                         SecureField("Passcode", text: $passcodeInput)
                             .textContentType(.password)
                             .keyboardType(.numberPad)
+                            .foregroundStyle(SurvivTheme.textPrimary)
                             .padding(12)
-                            .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 10))
+                            .background(Color.white.opacity(0.08), in: RoundedRectangle(cornerRadius: 10))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 10)
+                                    .stroke(Color.white.opacity(0.12), lineWidth: 1)
+                            )
                         if let unlockErrorText {
                             Text(unlockErrorText)
                                 .font(.system(size: 12, weight: .semibold, design: .rounded))
-                                .foregroundStyle(.red)
+                                .foregroundStyle(SurvivTheme.danger)
                         }
                         Button("Unlock") {
                             let normalized = passcodeInput.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -549,15 +562,24 @@ private struct CivilianSettingsSheet: View {
                                 Haptics.impact(.rigid)
                             }
                         }
-                        .buttonStyle(.borderedProminent)
+                        .font(.system(size: 16, weight: .heavy, design: .rounded))
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 12)
+                        .foregroundStyle(.white)
+                        .background(
+                            SurvivTheme.safe.opacity(0.85),
+                            in: RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        )
                         Spacer()
                     }
                     .padding(20)
+                    .background(SurvivTheme.background)
                     .navigationTitle("Unlock")
                     .navigationBarTitleDisplayMode(.inline)
                     .toolbar {
                         ToolbarItem(placement: .cancellationAction) {
                             Button("Cancel") { showPasscodeEntry = false }
+                                .foregroundStyle(SurvivTheme.safe)
                         }
                     }
                 }
@@ -570,8 +592,8 @@ private struct CivilianSettingsSheet: View {
             .sheet(isPresented: $showProfileEditor) {
                 ProfileNameSheet(
                     storedName: $profileDisplayName,
-                    title: "Update profile",
-                    subtitle: "Choose a clear name so teammates can identify your transmissions."
+                    title: "Network Identity",
+                    subtitle: "Enter a clear name so others can identify you on the mesh network."
                 )
                 .presentationDetents([.medium])
                 .presentationCornerRadius(22)

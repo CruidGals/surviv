@@ -47,10 +47,11 @@ struct ProfileNameSheet: View {
             VStack(alignment: .leading, spacing: 16) {
                 Text(title)
                     .font(.system(size: 26, weight: .black, design: .rounded))
+                    .foregroundStyle(SurvivTheme.textPrimary)
 
                 Text(subtitle)
                     .font(.system(size: 14, weight: .medium, design: .rounded))
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(SurvivTheme.textSecondary)
 
                 VStack(alignment: .leading, spacing: 8) {
                     TextField("Your name", text: $draftName)
@@ -58,23 +59,31 @@ struct ProfileNameSheet: View {
                         .autocorrectionDisabled()
                         .submitLabel(.done)
                         .onSubmit(saveIfValid)
+                        .foregroundStyle(SurvivTheme.textPrimary)
                         .padding(12)
-                        .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                        .background(
+                            Color.white.opacity(0.08),
+                            in: RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        )
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                .stroke(Color.white.opacity(0.12), lineWidth: 1)
+                        )
 
                     HStack {
                         if shouldShowValidationError {
                             Text("Use 2 to 24 characters")
                                 .font(.system(size: 12, weight: .semibold, design: .rounded))
-                                .foregroundStyle(.red)
+                                .foregroundStyle(SurvivTheme.danger)
                         } else {
-                            Text("This name appears on your mesh alerts")
+                            Text("Visible to all network users")
                                 .font(.system(size: 12, weight: .medium, design: .rounded))
-                                .foregroundStyle(.secondary)
+                                .foregroundStyle(SurvivTheme.textSecondary)
                         }
                         Spacer()
                         Text("\(normalizedName.count)/24")
                             .font(.system(size: 12, weight: .semibold, design: .rounded))
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(SurvivTheme.textSecondary)
                     }
                 }
 
@@ -85,16 +94,26 @@ struct ProfileNameSheet: View {
                         .font(.system(size: 17, weight: .heavy, design: .rounded))
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 12)
+                        .foregroundStyle(.white)
                 }
-                .buttonStyle(.borderedProminent)
+                .buttonStyle(.plain)
+                .background(
+                    SurvivTheme.safe.opacity(isNameLengthValid ? 0.85 : 0.5),
+                    in: RoundedRectangle(cornerRadius: 12, style: .continuous)
+                )
                 .disabled(!isNameLengthValid)
+                .opacity(isNameLengthValid ? 1.0 : 0.6)
             }
             .padding(20)
+            .background(SurvivTheme.background)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 if !isRequired {
                     ToolbarItem(placement: .cancellationAction) {
-                        Button("Cancel") { dismiss() }
+                        Button("Cancel") {
+                            dismiss()
+                        }
+                        .foregroundStyle(SurvivTheme.safe)
                     }
                 }
             }

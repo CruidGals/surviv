@@ -219,28 +219,43 @@ private struct CivilianSettingsView: View {
                 VStack(alignment: .leading, spacing: 16) {
                     Text("Admin unlock")
                         .font(.system(size: 22, weight: .heavy, design: .rounded))
+                        .foregroundStyle(SurvivTheme.textPrimary)
                     Text("Enter the operations passcode.")
                         .font(.subheadline)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(SurvivTheme.textSecondary)
                     SecureField("Passcode", text: $passcodeInput)
                         .textContentType(.password)
+                        .foregroundStyle(SurvivTheme.textPrimary)
                         .padding(12)
-                        .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 10))
+                        .background(Color.white.opacity(0.08), in: RoundedRectangle(cornerRadius: 10))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 10)
+                                .stroke(Color.white.opacity(0.12), lineWidth: 1)
+                        )
                     Button("Unlock") {
                         if passcodeInput == "1111" {
                             isAdmin = true
                             showPasscodeEntry = false
                         }
                     }
-                    .buttonStyle(.borderedProminent)
+                    .font(.system(size: 16, weight: .heavy, design: .rounded))
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 12)
+                    .foregroundStyle(.white)
+                    .background(
+                        SurvivTheme.safe.opacity(0.85),
+                        in: RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    )
                     Spacer()
                 }
                 .padding(20)
+                .background(SurvivTheme.background)
                 .navigationTitle("Unlock")
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar {
                     ToolbarItem(placement: .cancellationAction) {
                         Button("Cancel") { showPasscodeEntry = false }
+                            .foregroundStyle(SurvivTheme.safe)
                     }
                 }
             }
