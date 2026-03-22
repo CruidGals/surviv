@@ -198,6 +198,20 @@ private struct MasterMapView: View {
             .ignoresSafeArea()
             .allowsHitTesting(false)
 
+            MapZoomControls(
+                onZoomIn: {
+                    Haptics.impact(.light)
+                    mapModel.zoomIn()
+                },
+                onZoomOut: {
+                    Haptics.impact(.light)
+                    mapModel.zoomOut()
+                }
+            )
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
+            .padding(.top, 76)
+            .padding(.trailing, 12)
+
             VStack {
                 Spacer(minLength: 0)
 

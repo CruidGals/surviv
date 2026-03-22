@@ -76,6 +76,20 @@ struct ContentView: View {
                 }
             )
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+
+            MapZoomControls(
+                onZoomIn: {
+                    Haptics.impact(.light)
+                    model.zoomIn()
+                },
+                onZoomOut: {
+                    Haptics.impact(.light)
+                    model.zoomOut()
+                }
+            )
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
+            .padding(.top, 122)
+            .padding(.trailing, 12)
         }
         .task {
             model.loadOfflineMetadata()
@@ -193,6 +207,7 @@ private struct LeftToolbarChrome: View {
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel("Broadcast messages")
+
                 toolbarIconButton(
                     item: .internet,
                     systemImage: isOnline ? "wifi" : "wifi.slash",
@@ -921,6 +936,25 @@ final class MapViewModel: ObservableObject {
 
     func selectPinType(_ type: PinType) {
         selectedPinType = type
+    }
+
+    func zoomIn() {
+        applyZoom(scale: 0.70)
+    }
+
+    func zoomOut() {
+        applyZoom(scale: 1.40)
+    }
+
+    private func applyZoom(scale: Double) {
+        let minDelta: CLLocationDegrees = 0.0018
+        let maxDelta: CLLocationDegrees = 80
+        let nextLatitudeDelta = min(max(region.span.latitudeDelta * scale, minDelta), maxDelta)
+        let nextLongitudeDelta = min(max(region.span.longitudeDelta * scale, minDelta), maxDelta)
+        region = MKCoordinateRegion(
+            center: region.center,
+            span: MKCoordinateSpan(latitudeDelta: nextLatitudeDelta, longitudeDelta: nextLongitudeDelta)
+        )
     }
 
     /// Centers the map on the user once at launch when a valid coordinate is available.
