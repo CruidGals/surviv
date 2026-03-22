@@ -26,6 +26,7 @@ struct ContentView: View {
             HazardMapView(
                 region: $model.region,
                 pins: pins,
+                userLocation: coordinator.locationManager.lastKnownMapCoordinate(),
                 onDropPin: { _ in }
             )
             .ignoresSafeArea()
@@ -1027,6 +1028,7 @@ private final class OfflineMapCacheManager {
 struct HazardMapView: UIViewRepresentable {
     @Binding var region: MKCoordinateRegion
     let pins: [HazardPin]
+    let userLocation: CLLocationCoordinate2D?
     let onDropPin: (CLLocationCoordinate2D) -> Void
 
     final class PinAnnotation: NSObject, MKAnnotation {
@@ -1036,6 +1038,14 @@ struct HazardMapView: UIViewRepresentable {
         init(coordinate: CLLocationCoordinate2D, pinType: PinType) {
             self.coordinate = coordinate
             self.pinType = pinType
+        }
+    }
+
+    final class UserLocationAnnotation: NSObject, MKAnnotation {
+        let coordinate: CLLocationCoordinate2D
+
+        init(coordinate: CLLocationCoordinate2D) {
+            self.coordinate = coordinate
         }
     }
 
@@ -1102,6 +1112,13 @@ struct HazardMapView: UIViewRepresentable {
 
             context.coordinator.lastRenderKey = renderKey
         }
+
+        // Update user location annotation
+        let existingUserLocation = mapView.annotations.compactMap { $0 as? UserLocationAnnotation }
+        mapView.removeAnnotations(existingUserLocation)
+        if let userLoc = userLocation, CLLocationCoordinate2DIsValid(userLoc) {
+            mapView.addAnnotation(UserLocationAnnotation(coordinate: userLoc))
+        }
     }
 
     final class Coordinator: NSObject, MKMapViewDelegate {
@@ -1162,6 +1179,38 @@ struct HazardMapView: UIViewRepresentable {
         }
 
         func mapView(_ mapView: MKMapView, viewFor annotation: MKAnnotation) -> MKAnnotationView? {
+            if let userLocAnnotation = annotation as? UserLocationAnnotation {
+                let reuseId = "user-location"
+                var view = mapView.dequeueReusableAnnotationView(withIdentifier: reuseId)
+                
+                if view == nil {
+                    view = MKAnnotationView(annotation: userLocAnnotation, reuseIdentifier: reuseId)
+                    view!.frame = CGRect(x: 0, y: 0, width: 40, height: 40)
+                    
+                    // Outer circle (accuracy/area)
+                    let outerCircle = UIView(frame: CGRect(x: 2, y: 2, width: 36, height: 36))
+                    outerCircle.layer.cornerRadius = 18
+                    outerCircle.backgroundColor = UIColor.systemBlue.withAlphaComponent(0.15)
+                    outerCircle.layer.borderColor = UIColor.systemBlue.withAlphaComponent(0.3).cgColor
+                    outerCircle.layer.borderWidth = 1
+                    view!.addSubview(outerCircle)
+                    
+                    // Inner dot
+                    let innerDot = UIView(frame: CGRect(x: 14, y: 14, width: 12, height: 12))
+                    innerDot.layer.cornerRadius = 6
+                    innerDot.backgroundColor = UIColor.systemBlue
+                    innerDot.layer.borderColor = UIColor.white.cgColor
+                    innerDot.layer.borderWidth = 2
+                    view!.addSubview(innerDot)
+                } else {
+                    view!.annotation = userLocAnnotation
+                }
+                
+                view!.displayPriority = .required
+                view!.canShowCallout = false
+                return view
+            }
+
             guard let pinAnnotation = annotation as? PinAnnotation else {
                 return nil
             }

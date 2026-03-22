@@ -69,6 +69,7 @@ private struct MasterMapView: View {
             HazardMapView(
                 region: $mapModel.region,
                 pins: pins,
+                userLocation: coordinator.locationManager.lastKnownMapCoordinate(),
                 onDropPin: { coordinate in
                     coordinator.dropHazardPin(
                         at: coordinate,
