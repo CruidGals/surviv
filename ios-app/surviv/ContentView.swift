@@ -482,10 +482,6 @@ private struct CivilianSettingsSheet: View {
                     )
                 }
 
-                Toggle("Crisis mode (UI emphasis)", isOn: .constant(false))
-                    .disabled(true)
-                    .tint(ProjectTheme.warning)
-
                 VStack(alignment: .leading, spacing: 10) {
                     Text("About")
                         .font(.system(size: 12, weight: .heavy, design: .rounded))
