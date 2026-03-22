@@ -13,11 +13,22 @@ final class Coordinator: ObservableObject {
 
     private let modelContext: ModelContext
 
+    /// Pin IDs removed on this device; persisted so mesh replays after relaunch do not resurrect deleted rows.
+    private static let tombstoneUUIDsKey = "Surviv.tombstonedHazardPinUUIDs"
+    private static let tombstoneCap = 500
+    private var tombstonedHazardPinOrder: [UUID]
+    private var tombstonedHazardPinIds: Set<UUID>
+
     @Published var threatAlert: String?
     /// Bumps when `LocationManager` reports a new fix; drives map `onChange` for `ObservableObject` views.
     @Published private(set) var locationRevision = 0
 
     init(modelContainer: ModelContainer, networker: SurvivNetworker) {
+        let saved = UserDefaults.standard.stringArray(forKey: Self.tombstoneUUIDsKey) ?? []
+        let loaded = saved.compactMap { UUID(uuidString: $0) }
+        self.tombstonedHazardPinOrder = loaded
+        self.tombstonedHazardPinIds = Set(loaded)
+
         // Same context SwiftUI `@Query` uses so deletes/saves refresh the map immediately.
         self.modelContext = modelContainer.mainContext
         self.networker = networker
@@ -43,9 +54,14 @@ final class Coordinator: ObservableObject {
 
         meshService.onPinReceived { [weak self] pin in
             guard let self else { return }
+            if self.tombstonedHazardPinIds.contains(pin.id) { return }
             if self.hasHazardPin(id: pin.id) { return }
             self.modelContext.insert(pin)
-            try? self.modelContext.save()
+            do {
+                try self.modelContext.save()
+            } catch {
+                print("[Coordinator] SwiftData save failed after mesh pin insert: \(error)")
+            }
         }
 
         meshService.onClearHazardPinsByTypeReceived { [weak self] pinType in
@@ -67,10 +83,20 @@ final class Coordinator: ObservableObject {
         guard let all = try? modelContext.fetch(descriptor) else { return }
         let toRemove = all.filter { $0.pinType == pinType }
         guard !toRemove.isEmpty else { return }
+        let ids = Set(toRemove.map(\.id))
         for pin in toRemove {
             modelContext.delete(pin)
         }
-        try? modelContext.save()
+        do {
+            try modelContext.save()
+            networker.removePendingHazardPinPayloads(withPinIds: ids)
+            networker.removePendingHazardPinPayloads(withPinType: pinType)
+            for id in ids {
+                recordDeletedHazardPinIdForMeshSuppression(id)
+            }
+        } catch {
+            print("[Coordinator] SwiftData save failed after clearing pins by type: \(error)")
+        }
     }
 
     private func deleteHazardPinLocally(id: UUID) {
@@ -78,7 +104,24 @@ final class Coordinator: ObservableObject {
         descriptor.fetchLimit = 1
         guard let pin = try? modelContext.fetch(descriptor).first else { return }
         modelContext.delete(pin)
-        try? modelContext.save()
+        do {
+            try modelContext.save()
+            networker.removePendingHazardPinPayloads(withPinIds: Set([id]))
+            recordDeletedHazardPinIdForMeshSuppression(id)
+        } catch {
+            print("[Coordinator] SwiftData save failed after deleting pin: \(error)")
+        }
+    }
+
+    private func recordDeletedHazardPinIdForMeshSuppression(_ id: UUID) {
+        guard !tombstonedHazardPinIds.contains(id) else { return }
+        tombstonedHazardPinIds.insert(id)
+        tombstonedHazardPinOrder.append(id)
+        while tombstonedHazardPinOrder.count > Self.tombstoneCap {
+            let removed = tombstonedHazardPinOrder.removeFirst()
+            tombstonedHazardPinIds.remove(removed)
+        }
+        UserDefaults.standard.set(tombstonedHazardPinOrder.map(\.uuidString), forKey: Self.tombstoneUUIDsKey)
     }
 
     /// Remove all local pins of `pinType` and tell peers to do the same.
@@ -134,7 +177,11 @@ final class Coordinator: ObservableObject {
             reasonMessage: reasonMessage
         )
         modelContext.insert(pin)
-        try? modelContext.save()
+        do {
+            try modelContext.save()
+        } catch {
+            print("[Coordinator] SwiftData save failed after dropHazardPin: \(error)")
+        }
         broadcastPin(pin)
     }
 
@@ -142,6 +189,10 @@ final class Coordinator: ObservableObject {
         locationManager.requestPermission()
         locationManager.startUpdating()
         meshService.startServices()
+        // `ContentView` / admin map may have run `onAppear` before a cached fix existed; nudge observers once.
+        if locationManager.lastKnownMapCoordinate() != nil {
+            locationRevision += 1
+        }
         Task { @MainActor in
             let micOK = await Self.requestMicrophoneAccess()
             guard micOK else { return }

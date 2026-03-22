@@ -5,7 +5,7 @@ import CoreLocation
 final class LocationManager: NSObject, CLLocationManagerDelegate {
     private let manager = CLLocationManager()
 
-    /// Hardcoded UVA location override. Remove this and set `useOverrideLocation = false` to restore real GPS.
+    /// Dev-only: set `useOverrideLocation` to `true` to pin the simulator to this coordinate (UVA). **Ship with `false`.**
     static let overrideLocation = CLLocation(latitude: 38.0438, longitude: -78.5095)
     private let useOverrideLocation = true
 
@@ -24,6 +24,10 @@ final class LocationManager: NSObject, CLLocationManagerDelegate {
         if useOverrideLocation {
             currentLocation = Self.overrideLocation
             locationFixCount += 1
+            // `onLocationFix` is assigned after init; defer so ``Coordinator`` can bump ``locationRevision``.
+            DispatchQueue.main.async { [weak self] in
+                self?.onLocationFix?()
+            }
         }
     }
 

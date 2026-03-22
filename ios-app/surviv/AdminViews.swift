@@ -243,6 +243,12 @@ private struct MasterMapView: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
         }
         .background(Color.black)
+        .task {
+            try? await Task.sleep(nanoseconds: 50_000_000)
+            if let c = coordinator.locationManager.lastKnownMapCoordinate() {
+                mapModel.centerOnUserIfNeeded(c)
+            }
+        }
         .onAppear {
             if let c = coordinator.locationManager.lastKnownMapCoordinate() {
                 mapModel.centerOnUserIfNeeded(c)

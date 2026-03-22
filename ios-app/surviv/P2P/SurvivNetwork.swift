@@ -205,6 +205,26 @@ class SurvivNetworker: NSObject, ObservableObject {
         }
     }
 
+    /// Removes queued ``HazardPinWire`` payloads so zones removed locally are not flushed to peers later.
+    func removePendingHazardPinPayloads(withPinIds ids: Set<UUID>) {
+        guard !ids.isEmpty else { return }
+        pendingMeshLock.lock()
+        defer { pendingMeshLock.unlock() }
+        pendingMeshPayloads = pendingMeshPayloads.filter { data in
+            guard let wire = try? JSONDecoder().decode(HazardPinWire.self, from: data) else { return true }
+            return !ids.contains(wire.id)
+        }
+    }
+
+    func removePendingHazardPinPayloads(withPinType pinType: PinType) {
+        pendingMeshLock.lock()
+        defer { pendingMeshLock.unlock() }
+        pendingMeshPayloads = pendingMeshPayloads.filter { data in
+            guard let wire = try? JSONDecoder().decode(HazardPinWire.self, from: data) else { return true }
+            return wire.pinType != pinType
+        }
+    }
+
     func send(packet: SurvivPacket, toPeers peers: [MCPeerID]) {
         guard !peers.isEmpty, let data = packet.encode() else { return }
         try? session.send(data, toPeers: peers, with: .reliable)
