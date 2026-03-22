@@ -296,7 +296,9 @@ final class ThreatDetector {
             longitude: lon,
             pinType: .danger,
             threatSource: .audioDetection,
-            label: displayLabel
+            label: displayLabel,
+            createdByUsername: SurvivProfile.displayName,
+            reasonMessage: "Acoustic detection triggered this pin: \(displayLabel)"
         )
         modelContext.insert(pin)
         try? modelContext.save()

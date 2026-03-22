@@ -63,11 +63,13 @@ private struct MasterMapView: View {
     @Query(sort: \HazardPin.timestamp, order: .reverse) private var pins: [HazardPin]
     @StateObject private var mapModel = MapViewModel()
     @State private var bottomHazardExpanded = false
+    @State private var selectedHazardPinDetailId: UUID?
 
     var body: some View {
         ZStack {
             HazardMapView(
                 region: $mapModel.region,
+                selectedPinId: $selectedHazardPinDetailId,
                 pins: pins,
                 onDropPin: { coordinate in
                     coordinator.dropHazardPin(
@@ -122,6 +124,14 @@ private struct MasterMapView: View {
         .onChange(of: coordinator.locationRevision) { _, _ in
             if let c = coordinator.locationManager.lastKnownMapCoordinate() {
                 mapModel.centerOnUserIfNeeded(c)
+            }
+        }
+        .sheet(isPresented: Binding(
+            get: { selectedHazardPinDetailId != nil },
+            set: { if !$0 { selectedHazardPinDetailId = nil } }
+        )) {
+            if let id = selectedHazardPinDetailId, let pin = pins.first(where: { $0.id == id }) {
+                HazardPinDetailSheet(pin: pin)
             }
         }
     }

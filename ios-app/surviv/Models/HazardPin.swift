@@ -22,6 +22,10 @@ final class HazardPin {
     var threatSource: ThreatSource
     var radiusMeters: Double
     var label: String
+    /// Display name of the user who created or last relayed this pin (mesh profile or device name).
+    var createdByUsername: String = ""
+    /// Human-readable reason the pin exists (manual, detection summary, or mesh payload).
+    var reasonMessage: String = ""
     var sourceDeviceID: String
     var timestamp: Date
 
@@ -37,6 +41,8 @@ final class HazardPin {
         threatSource: ThreatSource = .manual,
         radiusMeters: Double = 120,
         label: String = "",
+        createdByUsername: String = "",
+        reasonMessage: String = "",
         sourceDeviceID: String = "",
         timestamp: Date = .now
     ) {
@@ -47,6 +53,8 @@ final class HazardPin {
         self.threatSource = threatSource
         self.radiusMeters = radiusMeters
         self.label = label
+        self.createdByUsername = createdByUsername
+        self.reasonMessage = reasonMessage
         self.sourceDeviceID = sourceDeviceID
         self.timestamp = timestamp
     }

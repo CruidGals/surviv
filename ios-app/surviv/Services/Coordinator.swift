@@ -52,12 +52,16 @@ final class Coordinator: ObservableObject {
     }
 
     func dropHazardPin(at coordinate: CLLocationCoordinate2D, pinType: PinType, radiusMeters: Double = 120) {
+        let pinId = UUID()
         let pin = HazardPin(
+            id: pinId,
             latitude: coordinate.latitude,
             longitude: coordinate.longitude,
             pinType: pinType,
             threatSource: .manual,
-            radiusMeters: radiusMeters
+            radiusMeters: radiusMeters,
+            createdByUsername: SurvivProfile.displayName,
+            reasonMessage: HazardPinReasons.arbitrary(for: pinType, seed: pinId)
         )
         modelContext.insert(pin)
         try? modelContext.save()
