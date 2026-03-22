@@ -325,7 +325,11 @@ private struct BottomHazardChrome: View {
         VStack(spacing: 0) {
             sheetGrabber
                 .padding(.top, 10)
-                .gesture(bottomDragGesture)
+                .onTapGesture {
+                    withAnimation(.spring(response: 0.42, dampingFraction: 0.86)) {
+                        isExpanded.toggle()
+                    }
+                }
 
             if isExpanded {
                 ControlPanel(
@@ -350,6 +354,8 @@ private struct BottomHazardChrome: View {
                     .transition(.opacity)
             }
         }
+        .contentShape(Rectangle())
+        .gesture(bottomDragGesture)
         .animation(.spring(response: 0.42, dampingFraction: 0.86), value: isExpanded)
         .safeAreaPadding(.bottom, 6)
     }
