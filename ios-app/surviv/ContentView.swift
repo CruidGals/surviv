@@ -18,9 +18,11 @@ struct ContentView: View {
     @Query(sort: \HazardPin.timestamp, order: .reverse) private var pins: [HazardPin]
     @StateObject private var model = MapViewModel()
     @State private var showSettings = false
+    @State private var leftToolbarExpanded: LeftToolbarExpandedItem? = nil
+    @State private var bottomHazardExpanded = false
 
     var body: some View {
-        ZStack(alignment: .bottom) {
+        ZStack(alignment: .top) {
             HazardMapView(
                 region: $model.region,
                 pins: pins,
@@ -49,41 +51,14 @@ struct ContentView: View {
             .ignoresSafeArea()
             .allowsHitTesting(false)
 
-            VStack(spacing: 12) {
-                HeaderBar(
-                    isOnline: model.isOnline,
-                    hasOfflineArea: model.hasOfflineArea,
-                    meshPeerCount: networker.connectedPeers.count,
-                    onSettings: { showSettings = true }
-                )
+            VStack {
+                Spacer(minLength: 0)
 
-                if let ann = networker.latestAdminAnnouncement {
-                    StatusCard(
-                        title: "COMMAND ALERT",
-                        subtitle: "\(ann.senderName): \(ann.message)"
-                    )
-                    .onTapGesture { networker.dismissAnnouncementBanner() }
-                }
+                statusToastStack
+                    .padding(.horizontal, 16)
 
-                if let threat = coordinator.threatAlert {
-                    StatusCard(title: "THREAT DETECTED", subtitle: "Acoustic sensor detected: \(threat)")
-                        .onTapGesture { coordinator.dismissThreatAlert() }
-                }
-
-                if !model.isOnline {
-                    StatusCard(
-                        title: "Offline Mode",
-                        subtitle: model.hasOfflineArea
-                            ? "Showing cached map data for previously downloaded areas."
-                            : "No downloaded area found yet. Download an area while online."
-                    )
-                }
-
-                if let status = model.downloadStatusMessage {
-                    StatusCard(title: "Offline Download", subtitle: status)
-                }
-
-                ControlPanel(
+                BottomHazardChrome(
+                    isExpanded: $bottomHazardExpanded,
                     selectedPinType: model.selectedPinType,
                     zoneRadiusMeters: $model.zoneRadiusMeters,
                     pinCount: pins.count,
@@ -99,8 +74,19 @@ struct ContentView: View {
                     }
                 )
             }
-            .padding(.horizontal, 16)
-            .padding(.bottom, 24)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
+
+            LeftToolbarChrome(
+                expandedItem: $leftToolbarExpanded,
+                isOnline: model.isOnline,
+                hasOfflineArea: model.hasOfflineArea,
+                meshPeerCount: networker.connectedPeers.count,
+                onSettings: {
+                    leftToolbarExpanded = nil
+                    showSettings = true
+                }
+            )
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         }
         .task {
             model.loadOfflineMetadata()
@@ -121,6 +107,308 @@ struct ContentView: View {
                 .presentationCornerRadius(22)
         }
     }
+
+    @ViewBuilder
+    private var statusToastStack: some View {
+        VStack(spacing: 10) {
+            if let ann = networker.latestAdminAnnouncement {
+                StatusCard(
+                    title: "COMMAND ALERT",
+                    subtitle: "\(ann.senderName): \(ann.message)"
+                )
+                .onTapGesture { networker.dismissAnnouncementBanner() }
+            }
+
+            if let threat = coordinator.threatAlert {
+                StatusCard(title: "THREAT DETECTED", subtitle: "Acoustic sensor detected: \(threat)")
+                    .onTapGesture { coordinator.dismissThreatAlert() }
+            }
+
+            if !model.isOnline {
+                StatusCard(
+                    title: "Offline Mode",
+                    subtitle: model.hasOfflineArea
+                        ? "Showing cached map data for previously downloaded areas."
+                        : "No downloaded area found yet. Download an area while online."
+                )
+            }
+
+            if let status = model.downloadStatusMessage {
+                StatusCard(title: "Offline Download", subtitle: status)
+            }
+        }
+        .padding(.bottom, 10)
+    }
+}
+
+private enum LeftToolbarExpandedItem: Equatable {
+    case internet
+    case mesh
+    case cache
+}
+
+private struct LeftToolbarChrome: View {
+    @Binding var expandedItem: LeftToolbarExpandedItem?
+    let isOnline: Bool
+    let hasOfflineArea: Bool
+    let meshPeerCount: Int
+    let onSettings: () -> Void
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 10) {
+            VStack(spacing: 12) {
+                toolbarIconButton(
+                    item: .internet,
+                    systemImage: isOnline ? "wifi" : "wifi.slash",
+                    accent: isOnline ? ProjectTheme.signal : ProjectTheme.warning
+                )
+                toolbarIconButton(
+                    item: .mesh,
+                    systemImage: "dot.radiowaves.left.and.right",
+                    accent: meshPeerCount > 0 ? ProjectTheme.signal : ProjectTheme.caution
+                )
+                toolbarIconButton(
+                    item: .cache,
+                    systemImage: hasOfflineArea ? "internaldrive.fill" : "internaldrive",
+                    accent: hasOfflineArea ? ProjectTheme.signal : ProjectTheme.caution
+                )
+                Button(action: onSettings) {
+                    Image(systemName: "gearshape.fill")
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundStyle(ProjectTheme.textPrimary)
+                        .frame(width: 40, height: 40)
+                        .background(leftToolbarIconCircleFill(selectedAccent: nil), in: Circle())
+                        .overlay(
+                            Circle()
+                                .stroke(Color.white.opacity(0.22), lineWidth: 1)
+                        )
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Settings")
+            }
+            .frame(maxHeight: .infinity, alignment: .top)
+            .padding(.vertical, 12)
+            .padding(.horizontal, 10)
+
+            if let item = expandedItem {
+                leftToolbarDetailCard(item: item)
+                    .transition(.asymmetric(
+                        insertion: .opacity.combined(with: .move(edge: .leading)),
+                        removal: .opacity
+                    ))
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .animation(.spring(response: 0.38, dampingFraction: 0.88), value: expandedItem)
+        .safeAreaPadding(.top, 10)
+        .safeAreaPadding(.leading, 12)
+    }
+
+    /// Nearly-opaque disk behind toolbar glyphs so they stay readable on the map.
+    private func leftToolbarIconCircleFill(selectedAccent: Color?) -> Color {
+        if let accent = selectedAccent {
+            accent.opacity(0.94)
+        } else {
+            Color(red: 0.07, green: 0.11, blue: 0.14).opacity(0.94)
+        }
+    }
+
+    private func toolbarIconButton(item: LeftToolbarExpandedItem, systemImage: String, accent: Color) -> some View {
+        let isSelected = expandedItem == item
+        return Button {
+            withAnimation(.spring(response: 0.38, dampingFraction: 0.88)) {
+                if expandedItem == item {
+                    expandedItem = nil
+                } else {
+                    expandedItem = item
+                }
+            }
+        } label: {
+            Image(systemName: systemImage)
+                .font(.system(size: 16, weight: .semibold))
+                .foregroundStyle(isSelected ? ProjectTheme.textPrimary : accent)
+                .frame(width: 40, height: 40)
+                .background(leftToolbarIconCircleFill(selectedAccent: isSelected ? accent : nil), in: Circle())
+                .overlay(
+                    Circle()
+                        .stroke(
+                            isSelected ? accent.opacity(0.95) : Color.white.opacity(0.22),
+                            lineWidth: isSelected ? 2 : 1
+                        )
+                )
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(accessibilityLabel(for: item))
+    }
+
+    private func accessibilityLabel(for item: LeftToolbarExpandedItem) -> String {
+        switch item {
+        case .internet: return "Internet status"
+        case .mesh: return "Mesh status"
+        case .cache: return "Offline cache status"
+        }
+    }
+
+    @ViewBuilder
+    private func leftToolbarDetailCard(item: LeftToolbarExpandedItem) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            switch item {
+            case .internet:
+                Text("Internet")
+                    .font(.system(size: 15, weight: .heavy, design: .rounded))
+                    .foregroundStyle(ProjectTheme.textPrimary)
+                Text(isOnline ? "On" : "Off")
+                    .font(.system(size: 20, weight: .bold, design: .rounded))
+                    .foregroundStyle(isOnline ? ProjectTheme.signal : ProjectTheme.warning)
+                Text(isOnline ? "Connected — you can reach the wider network." : "No connection — maps and mesh may be limited until you reconnect.")
+                    .font(.system(size: 12, weight: .medium, design: .rounded))
+                    .foregroundStyle(ProjectTheme.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            case .mesh:
+                Text("Mesh")
+                    .font(.system(size: 15, weight: .heavy, design: .rounded))
+                    .foregroundStyle(ProjectTheme.textPrimary)
+                Text(meshPeerCount > 0 ? "Active" : "Inactive")
+                    .font(.system(size: 20, weight: .bold, design: .rounded))
+                    .foregroundStyle(meshPeerCount > 0 ? ProjectTheme.signal : ProjectTheme.caution)
+                if meshPeerCount > 0 {
+                    Text("Enabled — linked with \(meshPeerCount) peer\(meshPeerCount == 1 ? "" : "s") nearby.")
+                        .font(.system(size: 12, weight: .medium, design: .rounded))
+                        .foregroundStyle(ProjectTheme.textSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                } else {
+                    Text("No peers in range. Mesh stays on and will connect when another device is nearby.")
+                        .font(.system(size: 12, weight: .medium, design: .rounded))
+                        .foregroundStyle(ProjectTheme.textSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            case .cache:
+                Text("Map cache")
+                    .font(.system(size: 15, weight: .heavy, design: .rounded))
+                    .foregroundStyle(ProjectTheme.textPrimary)
+                Text(hasOfflineArea ? "Ready" : "Not ready")
+                    .font(.system(size: 20, weight: .bold, design: .rounded))
+                    .foregroundStyle(hasOfflineArea ? ProjectTheme.signal : ProjectTheme.caution)
+                Text(
+                    hasOfflineArea
+                        ? "Enabled — an offline area is saved for when internet is unavailable."
+                        : "Disabled — preload an area from Hazard map while online to use cached tiles offline."
+                )
+                .font(.system(size: 12, weight: .medium, design: .rounded))
+                .foregroundStyle(ProjectTheme.textSecondary)
+                .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .padding(14)
+        .frame(maxWidth: 240, alignment: .leading)
+        .background(ProjectTheme.panel, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .stroke(ProjectTheme.panelBorder, lineWidth: 1)
+        )
+    }
+}
+
+private struct BottomHazardChrome: View {
+    @Binding var isExpanded: Bool
+    let selectedPinType: PinType
+    @Binding var zoneRadiusMeters: Double
+    let pinCount: Int
+    let isDownloading: Bool
+    let onSelectType: (PinType) -> Void
+    let onApplyRadiusToLast: () -> Void
+    let onDownloadArea: () -> Void
+    let onClearPins: () -> Void
+
+    var body: some View {
+        VStack(spacing: 0) {
+            sheetGrabber
+                .padding(.top, 10)
+                .gesture(bottomDragGesture)
+
+            if isExpanded {
+                ControlPanel(
+                    selectedPinType: selectedPinType,
+                    zoneRadiusMeters: $zoneRadiusMeters,
+                    pinCount: pinCount,
+                    isDownloading: isDownloading,
+                    onSelectType: onSelectType,
+                    onApplyRadiusToLast: onApplyRadiusToLast,
+                    onDownloadArea: onDownloadArea,
+                    onClearPins: onClearPins
+                )
+                .padding(.horizontal, 16)
+                .padding(.top, 4)
+                .padding(.bottom, 4)
+                .transition(.move(edge: .bottom).combined(with: .opacity))
+            } else {
+                collapsedBottomTab
+                    .padding(.horizontal, 16)
+                    .padding(.top, 4)
+                    .padding(.bottom, 8)
+                    .transition(.opacity)
+            }
+        }
+        .animation(.spring(response: 0.42, dampingFraction: 0.86), value: isExpanded)
+        .safeAreaPadding(.bottom, 6)
+    }
+
+    private var sheetGrabber: some View {
+        RoundedRectangle(cornerRadius: 3, style: .continuous)
+            .fill(Color.white.opacity(0.38))
+            .frame(width: 40, height: 5)
+            .padding(.vertical, 10)
+            .frame(maxWidth: .infinity)
+            .contentShape(Rectangle())
+    }
+
+    private var collapsedBottomTab: some View {
+        Button {
+            withAnimation(.spring(response: 0.42, dampingFraction: 0.86)) {
+                isExpanded = true
+            }
+        } label: {
+            HStack(spacing: 10) {
+                Image(systemName: "shield.lefthalf.filled.trianglebadge.exclamationmark")
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundStyle(ProjectTheme.caution)
+                Text("Hazard map")
+                    .font(.system(size: 16, weight: .heavy, design: .rounded))
+                    .foregroundStyle(ProjectTheme.textPrimary)
+                Spacer()
+                Text("\(pinCount) zones")
+                    .font(.system(size: 12, weight: .bold, design: .rounded))
+                    .foregroundStyle(ProjectTheme.textSecondary)
+                Image(systemName: "chevron.up")
+                    .font(.system(size: 13, weight: .bold))
+                    .foregroundStyle(ProjectTheme.textSecondary)
+            }
+            .padding(.horizontal, 14)
+            .padding(.vertical, 12)
+            .background(ProjectTheme.panel, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .stroke(ProjectTheme.panelBorder, lineWidth: 1)
+            )
+        }
+        .buttonStyle(.plain)
+    }
+
+    private var bottomDragGesture: some Gesture {
+        DragGesture(minimumDistance: 12)
+            .onEnded { value in
+                let dy = value.translation.height
+                if isExpanded, dy > 28 {
+                    withAnimation(.spring(response: 0.42, dampingFraction: 0.86)) {
+                        isExpanded = false
+                    }
+                } else if !isExpanded, dy < -28 {
+                    withAnimation(.spring(response: 0.42, dampingFraction: 0.86)) {
+                        isExpanded = true
+                    }
+                }
+            }
+    }
 }
 
 enum ProjectTheme {
@@ -133,63 +421,6 @@ enum ProjectTheme {
     static let textSecondary = Color.white.opacity(0.78)
     static let overlayTop = Color.black.opacity(0.45)
     static let overlayBottom = Color.black.opacity(0.5)
-}
-
-private struct HeaderBar: View {
-    let isOnline: Bool
-    let hasOfflineArea: Bool
-    let meshPeerCount: Int
-    let onSettings: () -> Void
-
-    var body: some View {
-        HStack(alignment: .top, spacing: 12) {
-            VStack(alignment: .leading, spacing: 10) {
-                Text("SURVIV")
-                    .font(.system(size: 26, weight: .black, design: .rounded))
-                    .foregroundStyle(ProjectTheme.textPrimary)
-
-                Text("Mesh Crisis Map")
-                    .font(.system(size: 13, weight: .semibold, design: .rounded))
-                    .foregroundStyle(ProjectTheme.textSecondary)
-
-                HStack(spacing: 8) {
-                    StatusChip(
-                        text: isOnline ? "Internet" : "No Internet",
-                        color: isOnline ? ProjectTheme.signal : ProjectTheme.warning,
-                        icon: isOnline ? "wifi" : "wifi.slash"
-                    )
-
-                    StatusChip(
-                        text: meshPeerCount > 0 ? "Mesh \(meshPeerCount)" : "Mesh Off",
-                        color: meshPeerCount > 0 ? ProjectTheme.signal : ProjectTheme.caution,
-                        icon: "dot.radiowaves.left.and.right"
-                    )
-
-                    StatusChip(
-                        text: hasOfflineArea ? "Cache Ready" : "Cache Missing",
-                        color: hasOfflineArea ? ProjectTheme.signal : ProjectTheme.caution,
-                        icon: hasOfflineArea ? "internaldrive.fill" : "internaldrive"
-                    )
-                }
-            }
-            Spacer(minLength: 0)
-            Button(action: onSettings) {
-                Image(systemName: "gearshape.fill")
-                    .font(.system(size: 20, weight: .semibold))
-                    .foregroundStyle(ProjectTheme.textPrimary)
-                    .padding(10)
-                    .background(ProjectTheme.panelBorder.opacity(0.35), in: Circle())
-            }
-            .buttonStyle(.plain)
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(14)
-        .background(ProjectTheme.panel, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .stroke(ProjectTheme.panelBorder, lineWidth: 1)
-        )
-    }
 }
 
 private struct CivilianSettingsSheet: View {
@@ -262,25 +493,6 @@ private struct CivilianSettingsSheet: View {
                 }
             }
         }
-    }
-}
-
-private struct StatusChip: View {
-    let text: String
-    let color: Color
-    let icon: String
-
-    var body: some View {
-        HStack(spacing: 6) {
-            Image(systemName: icon)
-                .font(.system(size: 11, weight: .bold))
-            Text(text)
-                .font(.system(size: 11, weight: .bold, design: .rounded))
-        }
-        .foregroundStyle(Color.white)
-        .padding(.horizontal, 10)
-        .padding(.vertical, 6)
-        .background(color.opacity(0.9), in: Capsule())
     }
 }
 
