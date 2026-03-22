@@ -5,6 +5,7 @@ import SwiftData
 enum AdminTab {
     case masterMap
     case broadcast
+    case threatHistory
 }
 
 struct AdminTabView: View {
@@ -19,6 +20,8 @@ struct AdminTabView: View {
                 MasterMapView()
             case .broadcast:
                 AdminBroadcastView()
+            case .threatHistory:
+                ThreatHistoryView()
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -539,9 +542,253 @@ private struct AdminBottomBar: View {
                 Haptics.impact(.light)
                 selectedTab = .broadcast
             }
+            AdminTabButton(title: "History", icon: "clock.fill", isSelected: selectedTab == .threatHistory) {
+                Haptics.impact(.light)
+                selectedTab = .threatHistory
+            }
         }
         .padding(8)
         .background(.ultraThinMaterial, in: Capsule())
+    }
+}
+
+private struct ThreatHistoryView: View {
+    @Environment(\.modelContext) private var modelContext
+    @Query(sort: \HazardPin.timestamp, order: .reverse) private var pins: [HazardPin]
+
+    private var dangerCount: Int {
+        pins.filter { $0.pinType == .danger }.count
+    }
+
+    private var safeCount: Int {
+        pins.filter { $0.pinType == .safeRoute }.count
+    }
+
+    private var historyHeader: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .top, spacing: 12) {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 10)
+                        .fill(SurvivTheme.danger.opacity(0.2))
+                        .frame(width: 34, height: 34)
+                    Image(systemName: "clock.arrow.circlepath")
+                        .font(.system(size: 16, weight: .heavy))
+                        .foregroundStyle(SurvivTheme.danger)
+                }
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Threat Timeline")
+                        .font(.system(size: 20, weight: .black, design: .rounded))
+                        .foregroundStyle(SurvivTheme.textPrimary)
+                    Text("All network reports with source and location")
+                        .font(.system(size: 12, weight: .medium, design: .rounded))
+                        .foregroundStyle(SurvivTheme.textSecondary)
+                }
+
+                Spacer(minLength: 0)
+            }
+
+            HStack(spacing: 8) {
+                Label("\(pins.count) total", systemImage: "list.bullet.rectangle")
+                    .font(.system(size: 11, weight: .semibold, design: .rounded))
+                    .foregroundStyle(SurvivTheme.textPrimary)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 6)
+                    .background(Color.white.opacity(0.08), in: Capsule())
+
+                Label("\(dangerCount) danger", systemImage: "exclamationmark.triangle.fill")
+                    .font(.system(size: 11, weight: .semibold, design: .rounded))
+                    .foregroundStyle(SurvivTheme.danger)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 6)
+                    .background(SurvivTheme.danger.opacity(0.14), in: Capsule())
+
+                Label("\(safeCount) safe", systemImage: "checkmark.circle.fill")
+                    .font(.system(size: 11, weight: .semibold, design: .rounded))
+                    .foregroundStyle(SurvivTheme.safe)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 6)
+                    .background(SurvivTheme.safe.opacity(0.14), in: Capsule())
+
+                Spacer(minLength: 0)
+            }
+        }
+        .padding(14)
+        .background(
+            LinearGradient(
+                colors: [Color.white.opacity(0.09), Color.white.opacity(0.04)],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 14)
+                .stroke(Color.white.opacity(0.12), lineWidth: 1)
+        )
+        .cornerRadius(14)
+    }
+
+    var body: some View {
+        NavigationStack {
+            ZStack {
+                Color.black
+                    .ignoresSafeArea()
+
+                if pins.isEmpty {
+                    VStack(spacing: 12) {
+                        Image(systemName: "clock.badge.exclamationmark")
+                            .font(.system(size: 40, weight: .semibold))
+                            .foregroundStyle(SurvivTheme.textSecondary)
+                        Text("No Threats Reported")
+                            .font(.system(size: 18, weight: .heavy, design: .rounded))
+                            .foregroundStyle(SurvivTheme.textPrimary)
+                        Text("Hazards will appear here as they're reported")
+                            .font(.system(size: 13, weight: .medium, design: .rounded))
+                            .foregroundStyle(SurvivTheme.textSecondary)
+                            .multilineTextAlignment(.center)
+                    }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
+                } else {
+                    VStack(spacing: 12) {
+                        historyHeader
+                            .padding(.horizontal, 16)
+                            .padding(.top, 10)
+
+                        List {
+                            ForEach(pins) { pin in
+                                ThreatHistoryRow(pin: pin)
+                                    .listRowBackground(Color.black.opacity(0.5))
+                            }
+                            .onDelete { indexSet in
+                                for index in indexSet {
+                                    modelContext.delete(pins[index])
+                                }
+                                try? modelContext.save()
+                            }
+                        }
+                        .listStyle(.plain)
+                        .scrollContentBackground(.hidden)
+                    }
+                }
+            }
+            .navigationTitle("History")
+            .navigationBarTitleDisplayMode(.inline)
+        }
+    }
+}
+
+private struct ThreatHistoryRow: View {
+    let pin: HazardPin
+
+    private var relativeTime: String {
+        let interval = Date.now.timeIntervalSince(pin.timestamp)
+        if interval < 60 {
+            return "now"
+        } else if interval < 3600 {
+            return "\(Int(interval / 60))m ago"
+        } else if interval < 86400 {
+            return "\(Int(interval / 3600))h ago"
+        } else {
+            return "\(Int(interval / 86400))d ago"
+        }
+    }
+
+    private var typeIcon: String {
+        pin.pinType == .danger ? "exclamationmark.triangle.fill" : "checkmark.circle.fill"
+    }
+
+    private var typeColor: Color {
+        pin.pinType == .danger ? SurvivTheme.danger : SurvivTheme.safe
+    }
+
+    private var creatorDisplay: String {
+        let name = pin.createdByUsername.trimmingCharacters(in: .whitespacesAndNewlines)
+        return name.isEmpty ? "Unknown" : name
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            // Header: Type, Time, Creator
+            HStack(spacing: 12) {
+                Image(systemName: typeIcon)
+                    .font(.system(size: 16, weight: .bold))
+                    .foregroundStyle(typeColor)
+                    .frame(width: 28, alignment: .center)
+
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack(spacing: 0) {
+                        Text(pin.pinType == .danger ? "Danger Zone" : "Safe Route")
+                            .font(.system(size: 15, weight: .heavy, design: .rounded))
+                            .foregroundStyle(SurvivTheme.textPrimary)
+                        Spacer()
+                    }
+                    
+                    HStack(spacing: 12) {
+                        Label(creatorDisplay, systemImage: "person.fill")
+                            .font(.system(size: 11, weight: .semibold, design: .rounded))
+                            .foregroundStyle(SurvivTheme.safe)
+                        
+                        Text(relativeTime)
+                            .font(.system(size: 11, weight: .semibold, design: .rounded))
+                            .foregroundStyle(SurvivTheme.textSecondary)
+                    }
+                }
+                
+                Spacer()
+            }
+
+            // Threat Details
+            if !pin.threatClassLabel.isEmpty {
+                HStack(spacing: 6) {
+                    Image(systemName: "exclamationmark.shield.fill")
+                        .font(.system(size: 10, weight: .bold))
+                        .foregroundStyle(typeColor)
+                    Text(pin.threatClassLabel)
+                        .font(.system(size: 12, weight: .semibold, design: .rounded))
+                        .foregroundStyle(typeColor)
+                }
+                .padding(.horizontal, 10)
+                .padding(.vertical, 6)
+                .background(typeColor.opacity(0.15))
+                .cornerRadius(6)
+            }
+
+            // Metadata Row
+            HStack(spacing: 16) {
+                Label("\(Int(pin.radiusMeters))m radius", systemImage: "dot.radiowaves.left.and.right")
+                    .font(.system(size: 11, weight: .medium, design: .rounded))
+                    .foregroundStyle(SurvivTheme.textSecondary)
+
+                if !pin.reasonMessage.isEmpty {
+                    Label(pin.reasonMessage, systemImage: "note.text")
+                        .font(.system(size: 11, weight: .medium, design: .rounded))
+                        .foregroundStyle(SurvivTheme.textSecondary)
+                        .lineLimit(1)
+                }
+                else if !pin.label.isEmpty {
+                    Label(pin.label, systemImage: "tag.fill")
+                        .font(.system(size: 11, weight: .medium, design: .rounded))
+                        .foregroundStyle(SurvivTheme.textSecondary)
+                        .lineLimit(1)
+                }
+                
+                Spacer()
+            }
+
+            // Coordinates
+            HStack(spacing: 6) {
+                Image(systemName: "mappin")
+                    .font(.system(size: 10, weight: .semibold))
+                Text(String(format: "%.4f, %.4f", pin.latitude, pin.longitude))
+                    .font(.system(size: 10, weight: .regular, design: .monospaced))
+                Spacer()
+            }
+            .foregroundStyle(SurvivTheme.textSecondary)
+        }
+        .padding(.vertical, 12)
+        .padding(.horizontal, 12)
+        .background(Color.white.opacity(0.04))
+        .cornerRadius(10)
     }
 }
 
@@ -566,6 +813,10 @@ private struct AdminTabButton: View {
         }
         .buttonStyle(.plain)
     }
+}
+
+private extension HazardPin {
+    // HazardPin already has coordinate property defined in the model
 }
 
 extension CLLocationCoordinate2D {
