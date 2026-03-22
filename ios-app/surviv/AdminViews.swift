@@ -4,15 +4,11 @@ import SwiftData
 
 enum AdminTab {
     case masterMap
-    case queue
     case broadcast
-    case node
 }
 
 struct AdminTabView: View {
     @Binding var isAdmin: Bool
-    @StateObject private var viewModel = SurvivViewModel()
-    @EnvironmentObject private var coordinator: Coordinator
     @EnvironmentObject private var networker: SurvivNetworker
     @State private var selectedTab: AdminTab = .masterMap
 
@@ -21,12 +17,8 @@ struct AdminTabView: View {
             switch selectedTab {
             case .masterMap:
                 MasterMapView()
-            case .queue:
-                ThreatQueueView(viewModel: viewModel)
             case .broadcast:
                 AdminBroadcastView()
-            case .node:
-                NodeSetupView(isAdmin: $isAdmin)
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -324,49 +316,6 @@ private struct AdminZoneTypeButton: View {
     }
 }
 
-private struct ThreatQueueView: View {
-    @ObservedObject var viewModel: SurvivViewModel
-
-    var body: some View {
-        NavigationStack {
-            List {
-                ForEach(viewModel.threatQueue) { item in
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text(item.type)
-                            .font(.system(size: 18, weight: .heavy, design: .rounded))
-                            .foregroundStyle(.white)
-                        HStack {
-                            Text(item.timeLabel)
-                            Text("•")
-                            Text(item.distanceLabel)
-                        }
-                        .font(.system(size: 12, weight: .semibold, design: .rounded))
-                        .foregroundStyle(SurvivTheme.textSecondary)
-                    }
-                    .padding(.vertical, 8)
-                    .listRowBackground(Color.black)
-                    .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-                        Button("Quarantine", role: .destructive) {
-                            viewModel.quarantine(item)
-                        }
-                    }
-                    .swipeActions(edge: .leading, allowsFullSwipe: true) {
-                        Button("Broadcast") {
-                            viewModel.broadcast(item)
-                        }
-                        .tint(SurvivTheme.safe)
-                    }
-                }
-            }
-            .scrollContentBackground(.hidden)
-            .background(Color.black)
-            .navigationTitle("Threat Queue")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbarColorScheme(.dark, for: .navigationBar)
-        }
-    }
-}
-
 private struct AdminBroadcastView: View {
     @EnvironmentObject private var networker: SurvivNetworker
     @State private var messageInput = ""
@@ -426,66 +375,6 @@ private struct AdminBroadcastView: View {
     }
 }
 
-private struct NodeSetupView: View {
-    @Binding var isAdmin: Bool
-    @State private var pulse = false
-
-    var body: some View {
-        ZStack {
-            Color.black.ignoresSafeArea()
-
-            VStack(spacing: 18) {
-                Spacer(minLength: 24)
-                Text("Anchor Node Active")
-                    .font(.system(size: 30, weight: .black, design: .rounded))
-                    .foregroundStyle(.white)
-
-                Text("Ready for Civilian Sync")
-                    .font(.system(size: 13, weight: .semibold, design: .rounded))
-                    .foregroundStyle(SurvivTheme.textSecondary)
-
-                ZStack {
-                    Circle()
-                        .stroke(SurvivTheme.safe.opacity(0.28), lineWidth: 6)
-                        .frame(width: pulse ? 320 : 240, height: pulse ? 320 : 240)
-                        .animation(.easeInOut(duration: 1.2).repeatForever(autoreverses: true), value: pulse)
-
-                    RoundedRectangle(cornerRadius: 24, style: .continuous)
-                        .fill(.ultraThinMaterial)
-                        .frame(width: 250, height: 250)
-                        .overlay(
-                            Image(systemName: "qrcode")
-                                .resizable()
-                                .scaledToFit()
-                                .foregroundStyle(.white)
-                                .padding(34)
-                        )
-                }
-
-                Spacer()
-
-                Button {
-                    Haptics.success()
-                    withAnimation(.spring(response: 0.45, dampingFraction: 0.84)) {
-                        isAdmin = false
-                    }
-                } label: {
-                    Text("Demote to Civilian")
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 14)
-                        .font(.system(size: 18, weight: .black, design: .rounded))
-                        .foregroundStyle(.white)
-                        .background(SurvivTheme.danger.opacity(0.9), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-                }
-                .buttonStyle(.plain)
-                .padding(.horizontal, 20)
-                .padding(.bottom, 120)
-            }
-        }
-        .onAppear { pulse = true }
-    }
-}
-
 private struct AdminBottomBar: View {
     @Binding var selectedTab: AdminTab
 
@@ -495,17 +384,9 @@ private struct AdminBottomBar: View {
                 Haptics.impact(.light)
                 selectedTab = .masterMap
             }
-            AdminTabButton(title: "Queue", icon: "tray.full", isSelected: selectedTab == .queue) {
-                Haptics.impact(.light)
-                selectedTab = .queue
-            }
             AdminTabButton(title: "Alert", icon: "megaphone.fill", isSelected: selectedTab == .broadcast) {
                 Haptics.impact(.light)
                 selectedTab = .broadcast
-            }
-            AdminTabButton(title: "Node", icon: "qrcode", isSelected: selectedTab == .node) {
-                Haptics.impact(.light)
-                selectedTab = .node
             }
         }
         .padding(8)
