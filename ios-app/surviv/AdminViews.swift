@@ -64,11 +64,78 @@ private struct MasterMapView: View {
     @StateObject private var mapModel = MapViewModel()
     @State private var bottomHazardExpanded = false
 
+    /// Cluster overlapping danger zones into combined zones
+    private var clusteredPins: [HazardPin] {
+        let dangerPins = pins.filter { $0.pinType == .danger }
+        let safeRoutePins = pins.filter { $0.pinType == .safeRoute }
+        
+        guard !dangerPins.isEmpty else { return pins }
+        
+        var processed = Set<UUID>()
+        var clustered: [HazardPin] = []
+        
+        for pin in dangerPins {
+            guard !processed.contains(pin.id) else { continue }
+            
+            // Find all pins that overlap with this one
+            var cluster = [pin]
+            processed.insert(pin.id)
+            
+            for otherPin in dangerPins {
+                guard !processed.contains(otherPin.id) else { continue }
+                
+                // Calculate distance between centers
+                let distance = pin.coordinate.distance(to: otherPin.coordinate)
+                
+                // If distance <= sum of radii, they overlap
+                if distance <= pin.radiusMeters + otherPin.radiusMeters {
+                    cluster.append(otherPin)
+                    processed.insert(otherPin.id)
+                }
+            }
+            
+            // If cluster has multiple pins, merge them
+            if cluster.count > 1 {
+                let mergedPin = mergeCluster(cluster)
+                clustered.append(mergedPin)
+            } else {
+                clustered.append(pin)
+            }
+        }
+        
+        return clustered + safeRoutePins
+    }
+    
+    /// Merge multiple overlapping pins into a single combined zone
+    private func mergeCluster(_ pins: [HazardPin]) -> HazardPin {
+        let avgLat = pins.map { $0.latitude }.reduce(0, +) / Double(pins.count)
+        let avgLon = pins.map { $0.longitude }.reduce(0, +) / Double(pins.count)
+        let centerCoord = CLLocationCoordinate2D(latitude: avgLat, longitude: avgLon)
+        
+        // Calculate radius to encompass all pins
+        let maxDistance = pins.map { pin in
+            centerCoord.distance(to: pin.coordinate) + pin.radiusMeters
+        }.max() ?? 120
+        
+        let merged = HazardPin(
+            id: pins[0].id,
+            latitude: avgLat,
+            longitude: avgLon,
+            pinType: .danger,
+            threatSource: pins[0].threatSource,
+            radiusMeters: maxDistance,
+            label: "Combined (\(pins.count))",
+            sourceDeviceID: pins[0].sourceDeviceID,
+            timestamp: pins[0].timestamp
+        )
+        return merged
+    }
+
     var body: some View {
         ZStack {
             HazardMapView(
                 region: $mapModel.region,
-                pins: pins,
+                pins: clusteredPins,
                 userLocation: coordinator.locationManager.lastKnownMapCoordinate(),
                 onDropPin: { coordinate in
                     coordinator.dropHazardPin(
@@ -95,7 +162,7 @@ private struct MasterMapView: View {
                     isExpanded: $bottomHazardExpanded,
                     selectedPinType: mapModel.selectedPinType,
                     zoneRadiusMeters: $mapModel.zoneRadiusMeters,
-                    pinCount: pins.count,
+                    pinCount: clusteredPins.count,
                     onSelectType: mapModel.selectPinType(_:),
                     onApplyRadiusToLast: {
                         guard let last = pins.first else { return }
@@ -434,5 +501,23 @@ private struct AdminTabButton: View {
             .background(isSelected ? SurvivTheme.safe.opacity(0.9) : Color.clear, in: Capsule())
         }
         .buttonStyle(.plain)
+    }
+}
+
+extension CLLocationCoordinate2D {
+    /// Calculate distance in meters between two coordinates using Haversine formula
+    func distance(to coordinate: CLLocationCoordinate2D) -> Double {
+        let R = 6371000.0 // Earth's radius in meters
+        
+        let lat1 = latitude * .pi / 180
+        let lat2 = coordinate.latitude * .pi / 180
+        let dLat = (coordinate.latitude - latitude) * .pi / 180
+        let dLon = (coordinate.longitude - longitude) * .pi / 180
+        
+        let a = sin(dLat / 2) * sin(dLat / 2) +
+                cos(lat1) * cos(lat2) * sin(dLon / 2) * sin(dLon / 2)
+        let c = 2 * atan2(sqrt(a), sqrt(1 - a))
+        
+        return R * c
     }
 }
