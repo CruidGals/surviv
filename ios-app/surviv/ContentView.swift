@@ -97,6 +97,13 @@ struct ContentView: View {
             model.loadOfflineMetadata()
             routeEngine.loadGraph()
         }
+        .task {
+            // Let `coordinator.start()` and the first `CLLocation` delivery run, then center once if needed.
+            try? await Task.sleep(nanoseconds: 50_000_000)
+            if let c = coordinator.locationManager.lastKnownMapCoordinate() {
+                model.centerOnUserIfNeeded(c)
+            }
+        }
         .onAppear {
             if let c = coordinator.locationManager.lastKnownMapCoordinate() {
                 model.centerOnUserIfNeeded(c)
@@ -945,10 +952,13 @@ private struct StatusCard: View {
 // MARK: - View Model
 
 final class MapViewModel: ObservableObject {
-    /// Placeholder until the first real GPS fix (via `centerOnUserIfNeeded`).
+    /// Zoom used when first centering on the user at launch (neighborhood scale).
+    private static let userLaunchSpan = MKCoordinateSpan(latitudeDelta: 0.015, longitudeDelta: 0.015)
+
+    /// Broad placeholder until `centerOnUserIfNeeded` applies the first real GPS fix (not a specific campus).
     @Published var region = MKCoordinateRegion(
-        center: CLLocationCoordinate2D(latitude: 38.0438, longitude: -78.5095),
-        span: MKCoordinateSpan(latitudeDelta: 0.015, longitudeDelta: 0.015)
+        center: CLLocationCoordinate2D(latitude: 39.5, longitude: -98.35),
+        span: MKCoordinateSpan(latitudeDelta: 28, longitudeDelta: 28)
     )
     @Published var selectedPinType: PinType = .danger
 
@@ -995,7 +1005,7 @@ final class MapViewModel: ObservableObject {
         guard !didApplyUserLaunchLocation else { return }
         guard CLLocationCoordinate2DIsValid(coordinate) else { return }
         didApplyUserLaunchLocation = true
-        region = MKCoordinateRegion(center: coordinate, span: region.span)
+        region = MKCoordinateRegion(center: coordinate, span: Self.userLaunchSpan)
     }
 
     func loadOfflineMetadata() {

@@ -142,6 +142,10 @@ final class Coordinator: ObservableObject {
         locationManager.requestPermission()
         locationManager.startUpdating()
         meshService.startServices()
+        // `ContentView` / admin map may have run `onAppear` before a cached fix existed; nudge observers once.
+        if locationManager.lastKnownMapCoordinate() != nil {
+            locationRevision += 1
+        }
         Task { @MainActor in
             let micOK = await Self.requestMicrophoneAccess()
             guard micOK else { return }

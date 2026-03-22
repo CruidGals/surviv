@@ -3,8 +3,8 @@ import MapKit
 
 final class SurvivViewModel: ObservableObject {
     @Published var region = MKCoordinateRegion(
-        center: CLLocationCoordinate2D(latitude: 38.0438, longitude: -78.5095),
-        span: MKCoordinateSpan(latitudeDelta: 0.015, longitudeDelta: 0.015)
+        center: CLLocationCoordinate2D(latitude: 39.5, longitude: -98.35),
+        span: MKCoordinateSpan(latitudeDelta: 28, longitudeDelta: 28)
     )
 
     @Published var zones: [ZoneItem] = [
