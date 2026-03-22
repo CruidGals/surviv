@@ -5,6 +5,11 @@ import CoreLocation
 final class LocationManager: NSObject, CLLocationManagerDelegate {
     private let manager = CLLocationManager()
 
+    /// Set to a coordinate to override GPS in the simulator. Set to nil for real device GPS.
+    #if DEBUG
+    static let simulatedLocation = CLLocation(latitude: 38.0438, longitude: -78.5095)
+    #endif
+
     var currentLocation: CLLocation?
     var authorizationStatus: CLAuthorizationStatus = .notDetermined
     /// Bumps on each `didUpdateLocations` so SwiftUI can react before `CLLocation` is `Equatable`.
@@ -16,6 +21,13 @@ final class LocationManager: NSObject, CLLocationManagerDelegate {
         super.init()
         manager.delegate = self
         manager.desiredAccuracy = kCLLocationAccuracyBest
+
+        #if DEBUG
+        if currentLocation == nil {
+            currentLocation = Self.simulatedLocation
+            locationFixCount += 1
+        }
+        #endif
     }
 
     func requestPermission() {

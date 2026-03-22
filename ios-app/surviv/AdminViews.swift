@@ -178,6 +178,7 @@ private struct MasterMapView: View {
                 ),
                 pins: clusteredPins,
                 userLocation: coordinator.locationManager.lastKnownMapCoordinate(),
+                routePolyline: [],
                 onDropPin: { coordinate in
                     activeSheet = .compose(
                         PendingAdminPinDraft(

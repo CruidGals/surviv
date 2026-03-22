@@ -22,6 +22,7 @@ struct ContentView: View {
     @State private var selectedHazardPinDetailId: UUID?
     @State private var leftToolbarExpanded: LeftToolbarExpandedItem? = nil
     @State private var isRoutingToSafety = false
+    @StateObject private var routeEngine = SafeRouteEngine()
 
     var body: some View {
         ZStack(alignment: .top) {
@@ -30,6 +31,7 @@ struct ContentView: View {
                 selectedPinId: $selectedHazardPinDetailId,
                 pins: pins,
                 userLocation: coordinator.locationManager.lastKnownMapCoordinate(),
+                routePolyline: routeEngine.routeCoordinates,
                 onDropPin: { _ in }
             )
             .ignoresSafeArea()
@@ -93,6 +95,7 @@ struct ContentView: View {
         }
         .task {
             model.loadOfflineMetadata()
+            routeEngine.loadGraph()
         }
         .onAppear {
             if let c = coordinator.locationManager.lastKnownMapCoordinate() {
@@ -103,6 +106,20 @@ struct ContentView: View {
             if let c = coordinator.locationManager.lastKnownMapCoordinate() {
                 model.centerOnUserIfNeeded(c)
             }
+            recalculateRouteIfNeeded()
+        }
+        .onChange(of: pins.count) { _, _ in
+            recalculateRouteIfNeeded()
+        }
+        .onChange(of: isRoutingToSafety) { _, routing in
+            if routing {
+                recalculateRouteIfNeeded()
+            } else {
+                routeEngine.clearRoute()
+            }
+        }
+        .onChange(of: routeEngine.graphReady) { _, ready in
+            if ready { recalculateRouteIfNeeded() }
         }
         .onChange(of: isAdmin) { _, newValue in
             if newValue {
@@ -127,6 +144,22 @@ struct ContentView: View {
                 HazardPinDetailSheet(snapshot: HazardPinDetailSnapshot(pin: pin), onDelete: nil)
             }
         }
+    }
+
+    private func recalculateRouteIfNeeded() {
+        guard isRoutingToSafety else { return }
+
+        guard let userCoord = coordinator.locationManager.lastKnownMapCoordinate(),
+              CLLocationCoordinate2DIsValid(userCoord) else { return }
+
+        let safePins = pins
+            .filter { $0.pinType == .safeRoute }
+            .map { RoutablePin(coordinate: $0.coordinate, radiusMeters: $0.radiusMeters) }
+        let dangerPins = pins
+            .filter { $0.pinType == .danger }
+            .map { RoutablePin(coordinate: $0.coordinate, radiusMeters: $0.radiusMeters) }
+
+        routeEngine.computeRoute(from: userCoord, safePins: safePins, dangerPins: dangerPins)
     }
 
     @ViewBuilder
@@ -914,8 +947,8 @@ private struct StatusCard: View {
 final class MapViewModel: ObservableObject {
     /// Placeholder until the first real GPS fix (via `centerOnUserIfNeeded`).
     @Published var region = MKCoordinateRegion(
-        center: CLLocationCoordinate2D(latitude: 37.336, longitude: -122.009),
-        span: MKCoordinateSpan(latitudeDelta: 0.08, longitudeDelta: 0.08)
+        center: CLLocationCoordinate2D(latitude: 38.0438, longitude: -78.5095),
+        span: MKCoordinateSpan(latitudeDelta: 0.015, longitudeDelta: 0.015)
     )
     @Published var selectedPinType: PinType = .danger
 
@@ -1149,6 +1182,7 @@ struct HazardMapView: UIViewRepresentable {
     @Binding var selectedPinId: UUID?
     let pins: [HazardPin]
     let userLocation: CLLocationCoordinate2D?
+    let routePolyline: [CLLocationCoordinate2D]
     let onDropPin: (CLLocationCoordinate2D) -> Void
 
     final class PinAnnotation: NSObject, MKAnnotation {
@@ -1216,7 +1250,8 @@ struct HazardMapView: UIViewRepresentable {
         }.joined(separator: ";")
 
         if context.coordinator.lastRenderKey != renderKey {
-            mapView.removeOverlays(mapView.overlays)
+            let existingCircles = mapView.overlays.filter { $0 is MKCircle }
+            mapView.removeOverlays(existingCircles)
             let overlays = pins.map { pin in
                 let circle = MKCircle(center: pin.coordinate, radius: pin.radiusMeters)
                 circle.title = pin.pinType.rawValue
@@ -1240,6 +1275,17 @@ struct HazardMapView: UIViewRepresentable {
         mapView.removeAnnotations(existingUserLocation)
         if let userLoc = userLocation, CLLocationCoordinate2DIsValid(userLoc) {
             mapView.addAnnotation(UserLocationAnnotation(coordinate: userLoc))
+        }
+
+        // Update route polyline
+        let existingRoutes = mapView.overlays.compactMap { $0 as? MKPolyline }
+        existingRoutes.forEach { mapView.removeOverlay($0) }
+
+        if routePolyline.count >= 2 {
+            var coords = routePolyline
+            let polyline = MKPolyline(coordinates: &coords, count: coords.count)
+            polyline.title = "safeRoute"
+            mapView.addOverlay(polyline, level: .aboveRoads)
         }
     }
 
@@ -1299,6 +1345,14 @@ struct HazardMapView: UIViewRepresentable {
         }
 
         func mapView(_ mapView: MKMapView, rendererFor overlay: MKOverlay) -> MKOverlayRenderer {
+            if let polyline = overlay as? MKPolyline, polyline.title == "safeRoute" {
+                let renderer = MKPolylineRenderer(polyline: polyline)
+                renderer.strokeColor = UIColor(ProjectTheme.signal)
+                renderer.lineWidth = 5
+                renderer.lineDashPattern = [8, 6]
+                return renderer
+            }
+
             guard let circle = overlay as? MKCircle else {
                 return MKOverlayRenderer(overlay: overlay)
             }
