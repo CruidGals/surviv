@@ -31,9 +31,13 @@ final class ThreatDetector {
 
     private let modelResourceName = "MADMelCNN"
 
+    /// All classes the model considers dangerous (everything except benign ambient).
     private let threatLabels: Set<String> = [
         "Shooting", "Shelling", "Helicopter", "Fighter", "Vehicle", "Drone"
     ]
+
+    /// Combined probability of *all* threat classes must reach this to fire.
+    private let dangerThreshold: Double = 0.75
 
     private let modelContext: ModelContext
     private let locationManager: LocationManager
@@ -158,11 +162,23 @@ final class ThreatDetector {
     }
 
     private func handleClassification(_ result: SNClassificationResult) {
-        guard let top = result.classifications.first else { return }
-        let label = top.identifier
-        let conf = Double(top.confidence)
-        guard conf >= 0.42, threatLabels.contains(label) else { return }
-        emitThreatIfNeeded(label: label)
+        var combinedConf: Double = 0
+        var topThreat: String?
+        var topThreatConf: Double = 0
+
+        for classification in result.classifications {
+            let label = classification.identifier
+            let conf = Double(classification.confidence)
+            guard threatLabels.contains(label) else { continue }
+            combinedConf += conf
+            if conf > topThreatConf {
+                topThreatConf = conf
+                topThreat = label
+            }
+        }
+
+        guard combinedConf >= dangerThreshold, let contributor = topThreat else { return }
+        emitDanger(combinedConfidence: combinedConf, topContributor: contributor)
     }
 
     private func appendAndMaybePredict(buffer: AVAudioPCMBuffer, sourceRate: Double) {
@@ -200,35 +216,38 @@ final class ThreatDetector {
         guard let provider = try? MLDictionaryFeatureProvider(dictionary: [waveformInputName: input]),
               let out = try? model.prediction(from: provider) else { return }
 
-        let label = Self.classLabel(from: out) ?? ""
-        guard !label.isEmpty, threatLabels.contains(label) else { return }
-        emitThreatIfNeeded(label: label)
+        let (combinedConf, topContributor) = Self.aggregateThreatConfidence(from: out, threatLabels: threatLabels)
+        if combinedConf >= dangerThreshold, let contributor = topContributor {
+            emitDanger(combinedConfidence: combinedConf, topContributor: contributor)
+        }
         ring.removeFirst(min(ring.count, targetSamples / 2))
     }
 
-    private static func classLabel(from output: MLFeatureProvider) -> String? {
-        if let s = output.featureValue(for: "classLabel")?.stringValue {
-            return s
-        }
+    /// Sum probabilities of all threat classes from model output; return (combined, top contributor).
+    private static func aggregateThreatConfidence(
+        from output: MLFeatureProvider,
+        threatLabels: Set<String>
+    ) -> (Double, String?) {
         if let probs = output.featureValue(for: "classLabelProbs")?.dictionaryValue {
-            var bestKey: String?
-            var bestScore = -Double.infinity
+            var combined: Double = 0
+            var topLabel: String?
+            var topScore: Double = 0
             for (k, v) in probs {
-                let labelKey = (k as? String) ?? String(describing: k)
+                let label = (k as? String) ?? String(describing: k)
                 let score = (v as? NSNumber)?.doubleValue ?? (v as? Double) ?? 0
-                if score > bestScore {
-                    bestScore = score
-                    bestKey = labelKey
+                guard threatLabels.contains(label) else { continue }
+                combined += score
+                if score > topScore {
+                    topScore = score
+                    topLabel = label
                 }
             }
-            return bestKey
+            return (combined, topLabel)
         }
-        for name in output.featureNames {
-            if name.lowercased().contains("label"), let s = output.featureValue(for: name)?.stringValue {
-                return s
-            }
+        if let label = output.featureValue(for: "classLabel")?.stringValue, threatLabels.contains(label) {
+            return (1.0, label)
         }
-        return nil
+        return (0, nil)
     }
 
     private static func floatSamples(from buffer: AVAudioPCMBuffer) -> [Float]? {
@@ -244,20 +263,23 @@ final class ThreatDetector {
         return nil
     }
 
-    private func emitThreatIfNeeded(label: String) {
+    private func emitDanger(combinedConfidence: Double, topContributor: String) {
         let now = Date()
         if let last = lastThreatTime, now.timeIntervalSince(last) < threatCooldown { return }
         lastThreatTime = now
 
+        let pct = Int(round(combinedConfidence * 100))
+        let displayLabel = "Danger — \(topContributor) (\(pct)%)"
+
         DispatchQueue.main.async { [weak self] in
             guard let self else { return }
-            self.lastDetectedThreat = label
-            let pin = self.createThreatPin(label: label)
-            self.onThreatDetected?(label, pin)
+            self.lastDetectedThreat = displayLabel
+            let pin = self.createDangerPin(displayLabel: displayLabel)
+            self.onThreatDetected?(displayLabel, pin)
         }
     }
 
-    func createThreatPin(label: String) -> HazardPin {
+    func createDangerPin(displayLabel: String) -> HazardPin {
         let lat = locationManager.currentLocation?.coordinate.latitude ?? 0
         let lon = locationManager.currentLocation?.coordinate.longitude ?? 0
 
@@ -266,7 +288,7 @@ final class ThreatDetector {
             longitude: lon,
             pinType: .danger,
             threatSource: .audioDetection,
-            label: label
+            label: displayLabel
         )
         modelContext.insert(pin)
         try? modelContext.save()
