@@ -1,26 +1,46 @@
 import SwiftUI
 
+/// Value copy for the detail UI so we can delete the backing ``HazardPin`` without holding a live model reference.
+struct HazardPinDetailSnapshot: Sendable {
+    let id: UUID
+    let pinType: PinType
+    let createdByUsername: String
+    let threatClassLabel: String
+    let reasonMessage: String
+
+    init(pin: HazardPin) {
+        id = pin.id
+        pinType = pin.pinType
+        createdByUsername = pin.createdByUsername
+        threatClassLabel = pin.threatClassLabel
+        reasonMessage = pin.reasonMessage
+    }
+}
+
 /// Medium/large detent sheet showing who placed a hazard pin and why (matches settings/broadcast presentation).
 struct HazardPinDetailSheet: View {
-    let pin: HazardPin
+    let snapshot: HazardPinDetailSnapshot
+    /// Removes the pin on this device and broadcasts to the mesh (by id; safe while this view is visible).
+    let onDelete: () -> Void
     @Environment(\.dismiss) private var dismiss
+    @State private var confirmDelete = false
 
     private var typeTitle: String {
-        switch pin.pinType {
+        switch snapshot.pinType {
         case .danger: return "Danger zone"
         case .safeRoute: return "Safe route"
         }
     }
 
     private var accent: Color {
-        switch pin.pinType {
+        switch snapshot.pinType {
         case .danger: return ProjectTheme.warning
         case .safeRoute: return ProjectTheme.signal
         }
     }
 
     private var creatorLine: String {
-        let s = pin.createdByUsername.trimmingCharacters(in: .whitespacesAndNewlines)
+        let s = snapshot.createdByUsername.trimmingCharacters(in: .whitespacesAndNewlines)
         return s.isEmpty ? "Unknown" : s
     }
 
@@ -29,7 +49,7 @@ struct HazardPinDetailSheet: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 18) {
                     HStack(spacing: 10) {
-                        Image(systemName: pin.pinType == .danger ? "exclamationmark.triangle.fill" : "figure.walk.diamond.fill")
+                        Image(systemName: snapshot.pinType == .danger ? "exclamationmark.triangle.fill" : "figure.walk.diamond.fill")
                             .font(.system(size: 22, weight: .bold))
                             .foregroundStyle(accent)
                         Text(typeTitle)
@@ -53,12 +73,12 @@ struct HazardPinDetailSheet: View {
                             .stroke(ProjectTheme.panelBorder, lineWidth: 1)
                     )
 
-                    if !pin.threatClassLabel.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    if !snapshot.threatClassLabel.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                         VStack(alignment: .leading, spacing: 8) {
                             Text("Threat class")
                                 .font(.system(size: 12, weight: .heavy, design: .rounded))
                                 .foregroundStyle(ProjectTheme.textSecondary)
-                            Text(pin.threatClassLabel)
+                            Text(snapshot.threatClassLabel)
                                 .font(.system(size: 15, weight: .medium, design: .rounded))
                                 .foregroundStyle(ProjectTheme.textPrimary)
                                 .fixedSize(horizontal: false, vertical: true)
@@ -76,7 +96,7 @@ struct HazardPinDetailSheet: View {
                         Text("Reason")
                             .font(.system(size: 12, weight: .heavy, design: .rounded))
                             .foregroundStyle(ProjectTheme.textSecondary)
-                        Text(pin.reasonMessage.trimmingCharacters(in: .whitespacesAndNewlines))
+                        Text(snapshot.reasonMessage.trimmingCharacters(in: .whitespacesAndNewlines))
                             .font(.system(size: 15, weight: .medium, design: .rounded))
                             .foregroundStyle(ProjectTheme.textPrimary)
                             .fixedSize(horizontal: false, vertical: true)
@@ -98,6 +118,32 @@ struct HazardPinDetailSheet: View {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Done") { dismiss() }
                 }
+                ToolbarItem(placement: .primaryAction) {
+                    Menu {
+                        Button(role: .destructive) {
+                            confirmDelete = true
+                        } label: {
+                            Label("Delete zone", systemImage: "trash")
+                        }
+                    } label: {
+                        Image(systemName: "ellipsis.circle")
+                            .font(.system(size: 17, weight: .semibold))
+                            .foregroundStyle(ProjectTheme.textPrimary)
+                    }
+                }
+            }
+            .confirmationDialog(
+                "Delete this zone?",
+                isPresented: $confirmDelete,
+                titleVisibility: .visible
+            ) {
+                Button("Delete", role: .destructive) {
+                    onDelete()
+                    dismiss()
+                }
+                Button("Cancel", role: .cancel) {}
+            } message: {
+                Text("This removes it on all connected devices.")
             }
         }
         .presentationDetents([.medium, .large])

@@ -1,5 +1,67 @@
 import Foundation
 
+/// Broadcast to remove every local pin of one type (relayed like ``HazardPinWire``).
+struct HazardPinsClearByTypeWire: Codable, Equatable {
+    static let meshMessageKindValue = "clearHazardPinsByType"
+
+    let meshMessageKind: String
+    let pinType: PinType
+    let commandId: UUID
+    var hopCount: Int
+
+    enum CodingKeys: String, CodingKey {
+        case meshMessageKind, pinType, commandId, hopCount
+    }
+
+    init(pinType: PinType, commandId: UUID, hopCount: Int = 0) {
+        self.meshMessageKind = Self.meshMessageKindValue
+        self.pinType = pinType
+        self.commandId = commandId
+        self.hopCount = hopCount
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        meshMessageKind = try c.decode(String.self, forKey: .meshMessageKind)
+        let raw = try c.decode(String.self, forKey: .pinType)
+        guard let parsed = PinType(rawValue: raw) else {
+            throw DecodingError.dataCorruptedError(
+                forKey: .pinType,
+                in: c,
+                debugDescription: "Unknown pinType \(raw)"
+            )
+        }
+        pinType = parsed
+        commandId = try c.decode(UUID.self, forKey: .commandId)
+        hopCount = try c.decodeIfPresent(Int.self, forKey: .hopCount) ?? 0
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(meshMessageKind, forKey: .meshMessageKind)
+        try c.encode(pinType.rawValue, forKey: .pinType)
+        try c.encode(commandId, forKey: .commandId)
+        try c.encode(hopCount, forKey: .hopCount)
+    }
+}
+
+/// Broadcast to remove one pin by id on every peer.
+struct HazardPinDeleteWire: Codable, Equatable {
+    static let meshMessageKindValue = "deleteHazardPin"
+
+    let meshMessageKind: String
+    let pinId: UUID
+    let commandId: UUID
+    var hopCount: Int
+
+    init(pinId: UUID, commandId: UUID, hopCount: Int = 0) {
+        self.meshMessageKind = Self.meshMessageKindValue
+        self.pinId = pinId
+        self.commandId = commandId
+        self.hopCount = hopCount
+    }
+}
+
 /// JSON payloads sent over Multipeer (distinct from ``SurvivPacket`` text announcements).
 struct HazardPinWire: Codable, Equatable {
     var id: UUID

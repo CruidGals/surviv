@@ -24,11 +24,17 @@ class SurvivNetworker: NSObject, ObservableObject {
     @Published var latestAdminAnnouncement: SurvivPacket?
 
     var onHazardPinWire: ((HazardPinWire) -> Void)?
+    var onClearHazardPinsByType: ((PinType) -> Void)?
+    var onHazardPinDelete: ((UUID) -> Void)?
+    /// Fires when at least one peer is connected after having none (mesh usable again).
+    var onMeshBecameReachable: (() -> Void)?
 
     /// Dedup must run synchronously when data arrives: multiple `didReceive` callbacks can enqueue main work before `@Published` updates, so async-only dedup allowed duplicate relays and UI rows.
     private let meshDedupLock = NSLock()
     private var seenSurvivPacketIds = Set<UUID>()
     private var seenPinWireIds = Set<UUID>()
+    private var seenClearByTypeCommandIds = Set<UUID>()
+    private var seenPinDeleteCommandIds = Set<UUID>()
 
     @discardableResult
     private func claimSurvivPacketIdIfNew(_ id: UUID) -> Bool {
@@ -45,6 +51,24 @@ class SurvivNetworker: NSObject, ObservableObject {
         defer { meshDedupLock.unlock() }
         guard !seenPinWireIds.contains(id) else { return false }
         seenPinWireIds.insert(id)
+        return true
+    }
+
+    @discardableResult
+    private func claimClearByTypeCommandIdIfNew(_ id: UUID) -> Bool {
+        meshDedupLock.lock()
+        defer { meshDedupLock.unlock() }
+        guard !seenClearByTypeCommandIds.contains(id) else { return false }
+        seenClearByTypeCommandIds.insert(id)
+        return true
+    }
+
+    @discardableResult
+    private func claimPinDeleteCommandIdIfNew(_ id: UUID) -> Bool {
+        meshDedupLock.lock()
+        defer { meshDedupLock.unlock() }
+        guard !seenPinDeleteCommandIds.contains(id) else { return false }
+        seenPinDeleteCommandIds.insert(id)
         return true
     }
 
@@ -122,6 +146,23 @@ class SurvivNetworker: NSObject, ObservableObject {
         }
     }
 
+    /// Originator: claim `commandId` before sending so relayed copies are ignored.
+    func broadcastHazardPinsClear(pinType: PinType) throws {
+        let commandId = UUID()
+        guard claimClearByTypeCommandIdIfNew(commandId) else { return }
+        let wire = HazardPinsClearByTypeWire(pinType: pinType, commandId: commandId, hopCount: 0)
+        let data = try JSONEncoder().encode(wire)
+        try broadcastMeshJSON(data)
+    }
+
+    func broadcastHazardPinDelete(pinId: UUID) throws {
+        let commandId = UUID()
+        guard claimPinDeleteCommandIdIfNew(commandId) else { return }
+        let wire = HazardPinDeleteWire(pinId: pinId, commandId: commandId, hopCount: 0)
+        let data = try JSONEncoder().encode(wire)
+        try broadcastMeshJSON(data)
+    }
+
     /// Civilians and admins: broadcast encoded JSON (e.g. ``HazardPinWire``). No role gate.
     /// Queues payloads when offline; flushes when the first peer connects.
     func broadcastMeshJSON(_ data: Data) throws {
@@ -184,6 +225,7 @@ extension SurvivNetworker: MCSessionDelegate {
             if nowConnected, !self.hadConnectedPeers {
                 self.hadConnectedPeers = true
                 self.flushPendingMeshPayloadsIfNeeded()
+                self.onMeshBecameReachable?()
             } else if !nowConnected {
                 self.hadConnectedPeers = false
             }
@@ -205,6 +247,44 @@ extension SurvivNetworker: MCSessionDelegate {
                         var relayPacket = packet
                         relayPacket.hopCount += 1
                         self.send(packet: relayPacket, toPeers: otherPeers)
+                    }
+                }
+            }
+            return
+        }
+
+        if let clearWire = try? JSONDecoder().decode(HazardPinsClearByTypeWire.self, from: data),
+           clearWire.meshMessageKind == HazardPinsClearByTypeWire.meshMessageKindValue {
+            guard claimClearByTypeCommandIdIfNew(clearWire.commandId) else { return }
+
+            DispatchQueue.main.async {
+                self.onClearHazardPinsByType?(clearWire.pinType)
+
+                let otherPeers = session.connectedPeers.filter { $0 != peerID }
+                if !otherPeers.isEmpty && clearWire.hopCount < 10 {
+                    var relay = clearWire
+                    relay.hopCount += 1
+                    if let relayData = try? JSONEncoder().encode(relay) {
+                        try? session.send(relayData, toPeers: otherPeers, with: .reliable)
+                    }
+                }
+            }
+            return
+        }
+
+        if let delWire = try? JSONDecoder().decode(HazardPinDeleteWire.self, from: data),
+           delWire.meshMessageKind == HazardPinDeleteWire.meshMessageKindValue {
+            guard claimPinDeleteCommandIdIfNew(delWire.commandId) else { return }
+
+            DispatchQueue.main.async {
+                self.onHazardPinDelete?(delWire.pinId)
+
+                let otherPeers = session.connectedPeers.filter { $0 != peerID }
+                if !otherPeers.isEmpty && delWire.hopCount < 10 {
+                    var relay = delWire
+                    relay.hopCount += 1
+                    if let relayData = try? JSONEncoder().encode(relay) {
+                        try? session.send(relayData, toPeers: otherPeers, with: .reliable)
                     }
                 }
             }

@@ -77,7 +77,6 @@ private enum MasterMapActiveSheet: Identifiable {
 }
 
 private struct MasterMapView: View {
-    @Environment(\.modelContext) private var modelContext
     @EnvironmentObject private var coordinator: Coordinator
     @Query(sort: \HazardPin.timestamp, order: .reverse) private var pins: [HazardPin]
     @StateObject private var mapModel = MapViewModel()
@@ -125,7 +124,10 @@ private struct MasterMapView: View {
         
         return clustered + safeRoutePins
     }
-    
+
+    private var dangerPinCount: Int { pins.filter { $0.pinType == .danger }.count }
+    private var safeRoutePinCount: Int { pins.filter { $0.pinType == .safeRoute }.count }
+
     /// Merge multiple overlapping pins into a single combined zone
     private func mergeCluster(_ pins: [HazardPin]) -> HazardPin {
         let avgLat = pins.map { $0.latitude }.reduce(0, +) / Double(pins.count)
@@ -201,6 +203,8 @@ private struct MasterMapView: View {
                     selectedPinType: mapModel.selectedPinType,
                     zoneRadiusMeters: $mapModel.zoneRadiusMeters,
                     pinCount: clusteredPins.count,
+                    dangerPinCount: dangerPinCount,
+                    safeRoutePinCount: safeRoutePinCount,
                     onSelectType: mapModel.selectPinType(_:),
                     onApplyRadiusToLast: {
                         guard let last = pins.first else { return }
@@ -208,12 +212,13 @@ private struct MasterMapView: View {
                     },
                     onUndoLastPin: {
                         guard let last = pins.first else { return }
-                        modelContext.delete(last)
-                        try? modelContext.save()
+                        coordinator.deleteHazardPinAndBroadcast(id: last.id)
                     },
-                    onClearAllPins: {
-                        for pin in pins { modelContext.delete(pin) }
-                        try? modelContext.save()
+                    onClearDangerZones: {
+                        coordinator.clearHazardPinsByTypeAndBroadcast(.danger)
+                    },
+                    onClearSafeRouteZones: {
+                        coordinator.clearHazardPinsByTypeAndBroadcast(.safeRoute)
                     }
                 )
             }
@@ -250,7 +255,10 @@ private struct MasterMapView: View {
                 )
             case .detail(let id):
                 if let pin = pins.first(where: { $0.id == id }) {
-                    HazardPinDetailSheet(pin: pin)
+                    HazardPinDetailSheet(snapshot: HazardPinDetailSnapshot(pin: pin)) {
+                        coordinator.deleteHazardPinAndBroadcast(id: id)
+                        activeSheet = nil
+                    }
                 } else {
                     Color.clear.onAppear { activeSheet = nil }
                 }
@@ -264,10 +272,13 @@ private struct AdminBottomHazardChrome: View {
     let selectedPinType: PinType
     @Binding var zoneRadiusMeters: Double
     let pinCount: Int
+    let dangerPinCount: Int
+    let safeRoutePinCount: Int
     let onSelectType: (PinType) -> Void
     let onApplyRadiusToLast: () -> Void
     let onUndoLastPin: () -> Void
-    let onClearAllPins: () -> Void
+    let onClearDangerZones: () -> Void
+    let onClearSafeRouteZones: () -> Void
 
     var body: some View {
         VStack(spacing: 0) {
@@ -288,10 +299,13 @@ private struct AdminBottomHazardChrome: View {
                     selectedPinType: selectedPinType,
                     zoneRadiusMeters: $zoneRadiusMeters,
                     pinCount: pinCount,
+                    dangerPinCount: dangerPinCount,
+                    safeRoutePinCount: safeRoutePinCount,
                     onSelectType: onSelectType,
                     onApplyRadiusToLast: onApplyRadiusToLast,
                     onUndoLastPin: onUndoLastPin,
-                    onClearAllPins: onClearAllPins
+                    onClearDangerZones: onClearDangerZones,
+                    onClearSafeRouteZones: onClearSafeRouteZones
                 )
                 .padding(.horizontal, 16)
                 .padding(.top, 4)
@@ -358,10 +372,13 @@ private struct AdminMappingPanel: View {
     let selectedPinType: PinType
     @Binding var zoneRadiusMeters: Double
     let pinCount: Int
+    let dangerPinCount: Int
+    let safeRoutePinCount: Int
     let onSelectType: (PinType) -> Void
     let onApplyRadiusToLast: () -> Void
     let onUndoLastPin: () -> Void
-    let onClearAllPins: () -> Void
+    let onClearDangerZones: () -> Void
+    let onClearSafeRouteZones: () -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -425,13 +442,29 @@ private struct AdminMappingPanel: View {
                 .tint(.orange)
                 .disabled(pinCount == 0)
 
-                Button(action: onClearAllPins) {
-                    Label("Clear All Zones", systemImage: "trash")
-                        .frame(maxWidth: .infinity)
+                HStack(spacing: 8) {
+                    Button(action: onClearDangerZones) {
+                        Label("Clear danger", systemImage: "exclamationmark.triangle.fill")
+                            .font(.system(size: 12, weight: .semibold, design: .rounded))
+                            .frame(maxWidth: .infinity)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.85)
+                    }
+                    .buttonStyle(.bordered)
+                    .tint(Color(red: 0.90, green: 0.20, blue: 0.20))
+                    .disabled(dangerPinCount == 0)
+
+                    Button(action: onClearSafeRouteZones) {
+                        Label("Clear safe", systemImage: "figure.walk.diamond.fill")
+                            .font(.system(size: 12, weight: .semibold, design: .rounded))
+                            .frame(maxWidth: .infinity)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.85)
+                    }
+                    .buttonStyle(.bordered)
+                    .tint(Color(red: 0.12, green: 0.72, blue: 0.52))
+                    .disabled(safeRoutePinCount == 0)
                 }
-                .buttonStyle(.bordered)
-                .tint(.red)
-                .disabled(pinCount == 0)
             }
         }
         .padding(14)

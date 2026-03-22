@@ -9,6 +9,7 @@ final class Coordinator: ObservableObject {
     let locationManager: LocationManager
     let audioDetector: ThreatDetector
     let meshService: MultipeerMeshService
+    private let networker: SurvivNetworker
 
     private let modelContext: ModelContext
 
@@ -17,10 +18,11 @@ final class Coordinator: ObservableObject {
     @Published private(set) var locationRevision = 0
 
     init(modelContainer: ModelContainer, networker: SurvivNetworker) {
-        let context = ModelContext(modelContainer)
-        self.modelContext = context
+        // Same context SwiftUI `@Query` uses so deletes/saves refresh the map immediately.
+        self.modelContext = modelContainer.mainContext
+        self.networker = networker
         self.locationManager = LocationManager()
-        self.audioDetector = ThreatDetector(modelContext: context, locationManager: locationManager)
+        self.audioDetector = ThreatDetector(modelContext: modelContainer.mainContext, locationManager: locationManager)
         self.meshService = MultipeerMeshService(networker: networker)
 
         locationManager.onLocationFix = { [weak self] in
@@ -34,7 +36,9 @@ final class Coordinator: ObservableObject {
         audioDetector.onThreatDetected = { [weak self] label, pin in
             guard let self else { return }
             self.threatAlert = label
-            Task { try? await self.meshService.broadcastPin(pin) }
+            Task { @MainActor in
+                try? await self.meshService.broadcastPin(pin)
+            }
         }
 
         meshService.onPinReceived { [weak self] pin in
@@ -42,6 +46,63 @@ final class Coordinator: ObservableObject {
             if self.hasHazardPin(id: pin.id) { return }
             self.modelContext.insert(pin)
             try? self.modelContext.save()
+        }
+
+        meshService.onClearHazardPinsByTypeReceived { [weak self] pinType in
+            self?.deleteHazardPinsLocally(wherePinType: pinType)
+        }
+
+        meshService.onHazardPinDeleteReceived { [weak self] pinId in
+            self?.deleteHazardPinLocally(id: pinId)
+        }
+
+        networker.onMeshBecameReachable = { [weak self] in
+            self?.broadcastAllLocalPinsToMesh()
+        }
+    }
+
+    /// Removes every local pin of one type only (no mesh).
+    private func deleteHazardPinsLocally(wherePinType pinType: PinType) {
+        let descriptor = FetchDescriptor<HazardPin>()
+        guard let all = try? modelContext.fetch(descriptor) else { return }
+        let toRemove = all.filter { $0.pinType == pinType }
+        guard !toRemove.isEmpty else { return }
+        for pin in toRemove {
+            modelContext.delete(pin)
+        }
+        try? modelContext.save()
+    }
+
+    private func deleteHazardPinLocally(id: UUID) {
+        var descriptor = FetchDescriptor<HazardPin>(predicate: #Predicate { $0.id == id })
+        descriptor.fetchLimit = 1
+        guard let pin = try? modelContext.fetch(descriptor).first else { return }
+        modelContext.delete(pin)
+        try? modelContext.save()
+    }
+
+    /// Remove all local pins of `pinType` and tell peers to do the same.
+    func clearHazardPinsByTypeAndBroadcast(_ pinType: PinType) {
+        deleteHazardPinsLocally(wherePinType: pinType)
+        Task { @MainActor in
+            try? await meshService.broadcastClearHazardPins(pinType: pinType)
+        }
+    }
+
+    /// Remove one pin locally and broadcast deletion to the mesh.
+    func deleteHazardPinAndBroadcast(id: UUID) {
+        deleteHazardPinLocally(id: id)
+        Task { @MainActor in
+            try? await meshService.broadcastHazardPinDelete(pinId: id)
+        }
+    }
+
+    /// Re-announce every local pin so late joiners converge with the mesh.
+    private func broadcastAllLocalPinsToMesh() {
+        let descriptor = FetchDescriptor<HazardPin>()
+        guard let pins = try? modelContext.fetch(descriptor) else { return }
+        for pin in pins {
+            broadcastPin(pin)
         }
     }
 
@@ -124,7 +185,9 @@ final class Coordinator: ObservableObject {
     }
 
     func broadcastPin(_ pin: HazardPin) {
-        Task { try? await meshService.broadcastPin(pin) }
+        Task { @MainActor in
+            try? await meshService.broadcastPin(pin)
+        }
     }
 
     func dismissThreatAlert() {
